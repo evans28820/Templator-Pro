@@ -48,6 +48,21 @@ export function generateJsx(input: JsxGenerationInput): string {
   lines.push('}');
   lines.push('');
 
+  /* ── Helper: recursive findTextFrame ── */
+  lines.push('function findTextFrame(container, targetName) {');
+  lines.push('  var tfs = container.textFrames;');
+  lines.push('  for (var i = 0; i < tfs.length; i++) {');
+  lines.push('    if (!targetName || tfs[i].name === targetName) return tfs[i];');
+  lines.push('  }');
+  lines.push('  var groups = container.groupItems;');
+  lines.push('  for (var j = 0; j < groups.length; j++) {');
+  lines.push('    var found = findTextFrame(groups[j], targetName);');
+  lines.push('    if (found) return found;');
+  lines.push('  }');
+  lines.push('  return null;');
+  lines.push('}');
+  lines.push('');
+
   /* ── Main ── */
   lines.push('var doc = app.open(File("' + escapeJsxString(input.templateAiPath) + '"));');
   lines.push('');

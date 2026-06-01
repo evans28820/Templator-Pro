@@ -21,6 +21,7 @@ export const useTemplateStore = defineStore('template', () => {
   const globalRowBreakMode = ref<RowBreakMode>('locked');
   const globalMaxRows = ref(2);
   const selectedNodeId = ref<string | null>(null);
+  const scanError = ref<string | null>(null);
 
   /* ── Getters ── */
   const hasScanResult = computed(() => scanResult.value !== null);
@@ -106,6 +107,7 @@ export const useTemplateStore = defineStore('template', () => {
     globalRowBreakMode.value = 'locked';
     globalMaxRows.value = 2;
     selectedNodeId.value = null;
+    scanError.value = null;
   }
 
   return {
@@ -117,6 +119,7 @@ export const useTemplateStore = defineStore('template', () => {
     globalRowBreakMode,
     globalMaxRows,
     selectedNodeId,
+    scanError,
     hasScanResult,
     selectedNode,
     facePanels,

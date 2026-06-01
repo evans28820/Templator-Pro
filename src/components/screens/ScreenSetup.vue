@@ -71,8 +71,8 @@ const topBarInfo = computed(() => {
 
 /** Drag & drop .ai file handler */
 async function onFileDrop(e: DragEvent): Promise<void> {
-  const file = e.dataTransfer?.files?.[0];
-  if (!file || !file.name.endsWith('.ai')) return;
+  const file = (e.dataTransfer?.files?.[0] ?? null) as (File & { path?: string }) | null;
+  if (!file || !file.path || !file.name.endsWith('.ai')) return;
   isScanning.value = true;
   try {
     const result = await window.templatorAPI.scanAiFile(file.path);
