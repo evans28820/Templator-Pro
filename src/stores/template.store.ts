@@ -143,6 +143,7 @@ interface NodeConfig {
   canShrink: boolean;
   shrinkMode?: 'proportional' | 'fontOnly';
   minSizeMm?: number;
+  minFontSizePt?: number;
   allow2LineWrap: boolean;
   priority: 1 | 2 | 3 | 4 | 5;
   includeInExcel: boolean;
