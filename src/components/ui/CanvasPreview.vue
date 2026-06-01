@@ -11,17 +11,30 @@ const canvasRef = ref<HTMLCanvasElement | null>(null);
 const zoomDisplay = ref('100%');
 
 const configuredFaces = computed(() => {
-  const set = new Set<string>();
-  for (const [face, cfg] of Object.entries(templateStore.panelConfigs)) {
-    if (!cfg) continue;
-    if (cfg.paddingTop !== PANEL_DEFAULTS.paddingTop) set.add(face);
-    else if (cfg.paddingLeft !== PANEL_DEFAULTS.paddingLeft) set.add(face);
-    else if (cfg.minFontSizePt !== PANEL_DEFAULTS.minFontSizePt) set.add(face);
-    else if (cfg.maxFontSizePt !== PANEL_DEFAULTS.maxFontSizePt) set.add(face);
-    else if (cfg.remarks.length > 0) set.add(face);
+  const s = new Set<string>();
+  const configs = templateStore.panelConfigs;
+  for (const face of ['bottom', 'top', 'left', 'right']) {
+    const cfg = configs[face];
+    if (!cfg || !cfg.enabled) { continue; }
+    if (
+      cfg.paddingTop !== PANEL_DEFAULTS.paddingTop ||
+      cfg.paddingLeft !== PANEL_DEFAULTS.paddingLeft ||
+      cfg.minFontSizePt !== PANEL_DEFAULTS.minFontSizePt ||
+      cfg.maxFontSizePt !== PANEL_DEFAULTS.maxFontSizePt ||
+      cfg.remarks.length > 0
+    ) {
+      s.add(face);
+    }
   }
-  return set;
+  return s;
 });
+
+const canvasApi = useCanvas(
+  canvasRef,
+  computed(() => templateStore.scanResult),
+  computed(() => templateStore.selectedNodeId),
+  configuredFaces,
+);
 
 const {
   viewport,
@@ -35,12 +48,7 @@ const {
   onWheel,
   onDblClick,
   loadArtwork,
-} = useCanvas(
-  canvasRef,
-  computed(() => templateStore.scanResult),
-  computed(() => templateStore.selectedNodeId),
-  configuredFaces,
-);
+} = canvasApi;
 
 function handleMouseDown(e: MouseEvent): void {
   const hit = onMouseDown(e);
@@ -48,7 +56,7 @@ function handleMouseDown(e: MouseEvent): void {
     templateStore.selectNode(hit.id);
     emit('select-node', hit.id);
     centerOnNode(hit);
-  } else if (!hit) {
+  } else {
     templateStore.selectNode(null);
     emit('select-node', null);
   }
@@ -64,7 +72,6 @@ watch(
     if (result?.previewImageBase64) {
       loadArtwork(`data:image/png;base64,${result.previewImageBase64}`);
     }
-    // FIX 1: initial zoom — 70% height, top portion
     setTimeout(() => initialZoom(), 200);
   },
   { immediate: true },
