@@ -21,7 +21,9 @@
   },
   "include": [
     "electron/**/*.ts",
-    "src/types/**/*.ts"
+    "src/types/**/*.ts",
+    "src/utils/**/*.ts",
+    "src/workers/**/*.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }
