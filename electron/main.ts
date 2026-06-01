@@ -44,7 +44,7 @@ function createWindow(): void {
     mainWindow.loadURL(VITE_DEV_SERVER_URL);
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    mainWindow.loadFile(path.join(__dirname, '../../renderer/index.html'));
   }
 
   mainWindow.on('closed', () => {
