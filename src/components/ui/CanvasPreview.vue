@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useCanvas } from '../../composables/useCanvas';
 import { useTemplateStore } from '../../stores/template.store';
+import { PANEL_DEFAULTS } from '../../types';
 
 const emit = defineEmits<{ 'select-node': [nodeId: string | null] }>();
 
@@ -9,9 +10,23 @@ const templateStore = useTemplateStore();
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const zoomDisplay = ref('100%');
 
+const configuredFaces = computed(() => {
+  const set = new Set<string>();
+  for (const [face, cfg] of Object.entries(templateStore.panelConfigs)) {
+    if (!cfg) continue;
+    if (cfg.paddingTop !== PANEL_DEFAULTS.paddingTop) set.add(face);
+    else if (cfg.paddingLeft !== PANEL_DEFAULTS.paddingLeft) set.add(face);
+    else if (cfg.minFontSizePt !== PANEL_DEFAULTS.minFontSizePt) set.add(face);
+    else if (cfg.maxFontSizePt !== PANEL_DEFAULTS.maxFontSizePt) set.add(face);
+    else if (cfg.remarks.length > 0) set.add(face);
+  }
+  return set;
+});
+
 const {
   viewport,
   draw,
+  initialZoom,
   fitToCanvas,
   centerOnNode,
   onMouseDown,
@@ -24,6 +39,7 @@ const {
   canvasRef,
   computed(() => templateStore.scanResult),
   computed(() => templateStore.selectedNodeId),
+  configuredFaces,
 );
 
 function handleMouseDown(e: MouseEvent): void {
@@ -48,7 +64,8 @@ watch(
     if (result?.previewImageBase64) {
       loadArtwork(`data:image/png;base64,${result.previewImageBase64}`);
     }
-    setTimeout(() => fitToCanvas(), 100);
+    // FIX 1: initial zoom — 70% height, top portion
+    setTimeout(() => initialZoom(), 200);
   },
   { immediate: true },
 );
@@ -93,47 +110,11 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.canvas-preview {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: var(--bg-primary);
-}
-.canvas-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-primary);
-  flex-shrink: 0;
-}
-.tool-btn {
-  padding: 3px 10px;
-  border: 1px solid var(--border-primary);
-  border-radius: 4px;
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 12px;
-}
-.tool-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-.zoom-badge {
-  font-size: 11px;
-  color: var(--text-muted);
-  min-width: 42px;
-  text-align: center;
-}
-.preview-canvas {
-  flex: 1;
-  width: 100%;
-  cursor: grab;
-  display: block;
-}
-.preview-canvas:active {
-  cursor: grabbing;
-}
+.canvas-preview { display:flex; flex-direction:column; height:100%; background:var(--bg-primary); }
+.canvas-toolbar { display:flex; align-items:center; gap:6px; padding:5px 10px; background:var(--bg-secondary); border-bottom:1px solid var(--border-primary); flex-shrink:0; }
+.tool-btn { padding:3px 10px; border:1px solid var(--border-primary); border-radius:4px; background:var(--bg-primary); color:var(--text-secondary); cursor:pointer; font-size:12px; }
+.tool-btn:hover { background:var(--bg-hover); color:var(--text-primary); }
+.zoom-badge { font-size:11px; color:var(--text-muted); min-width:42px; text-align:center; }
+.preview-canvas { flex:1; width:100%; cursor:grab; display:block; }
+.preview-canvas:active { cursor:grabbing; }
 </style>

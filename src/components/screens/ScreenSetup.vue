@@ -2,8 +2,8 @@
 import { ref, computed } from 'vue';
 import { useTemplateStore } from '../../stores/template.store';
 import { useSettingsStore } from '../../stores/settings.store';
-import type { Face, PipelinePhase } from '../../types';
-import { DEFAULT_PIPELINE } from '../../types';
+import type { Face, PipelinePhase, TreeNode } from '../../types';
+import { DEFAULT_PIPELINE, PANEL_DEFAULTS } from '../../types';
 import AppTopBar from '../layout/AppTopBar.vue';
 import ResizeDivider from '../layout/ResizeDivider.vue';
 import CanvasPreview from '../ui/CanvasPreview.vue';
@@ -33,6 +33,18 @@ function onResizeRight(delta: number): void {
 const showPipelineSection = ref(false);
 const showSettingsSection = ref(false);
 const selectedFace = ref<Face>('bottom');
+
+const configuredFaces = computed(() => {
+  const s = new Set<string>();
+  for (const [face, cfg] of Object.entries(templateStore.panelConfigs)) {
+    if (!cfg || !cfg.enabled) continue;
+    if (cfg.paddingTop !== PANEL_DEFAULTS.paddingTop) s.add(face);
+    else if (cfg.minFontSizePt !== PANEL_DEFAULTS.minFontSizePt) s.add(face);
+    else if (cfg.maxFontSizePt !== PANEL_DEFAULTS.maxFontSizePt) s.add(face);
+    else if (cfg.remarks.length > 0) s.add(face);
+  }
+  return s;
+});
 
 const isFaceNode = computed(() => {
   const node = templateStore.selectedNode;
@@ -112,6 +124,25 @@ async function selectAiFile(): Promise<void> {
 function generateExcel(): void {
   // Phase 4
 }
+
+/* ── FIX 6: Click field → focus canvas ── */
+function findNodesByName(nodes: TreeNode[], name: string): TreeNode[] {
+  const r: TreeNode[] = [];
+  walk(nodes, name, r);
+  return r;
+}
+function walk(nodes: TreeNode[], name: string, out: TreeNode[]): void {
+  for (const n of nodes) { if (n.name === name) out.push(n); walk(n.children, name, out); }
+}
+const fieldCycleIndex = ref<Record<string, number>>({});
+function focusField(fieldName: string): void {
+  const nodes = findNodesByName(templateStore.scanResult?.tree ?? [], fieldName);
+  if (nodes.length === 0) return;
+  const idx = fieldCycleIndex.value[fieldName] ?? 0;
+  const next = (idx + 1) % nodes.length;
+  fieldCycleIndex.value[fieldName] = next;
+  templateStore.selectNode(nodes[idx].id);
+}
 </script>
 
 <template>
@@ -173,6 +204,7 @@ function generateExcel(): void {
           <LayerTree
             :tree="templateStore.scanResult?.tree ?? []"
             :selected-id="templateStore.selectedNodeId"
+            :configured-faces="configuredFaces"
             @select-node="onSelectNode"
           />
         </div>
@@ -257,7 +289,8 @@ function generateExcel(): void {
               <tr><th>In Excel?</th><th>Field name</th><th>Current content</th><th>Notes</th></tr>
             </thead>
             <tbody>
-              <tr v-for="tf in templateStore.scanResult?.textFrames ?? []" :key="tf.name" :class="{ readonly: tf.readOnly }">
+              <!-- FIX 6: clickable field rows -->
+              <tr v-for="tf in templateStore.scanResult?.textFrames ?? []" :key="tf.name" :class="{ readonly: tf.readOnly, clickable: !tf.readOnly && tf.name }" @click="!tf.readOnly && tf.name && focusField(tf.name)">
                 <td><input v-if="!tf.readOnly" type="checkbox" checked /><span v-else>–</span></td>
                 <td>{{ tf.name || '&lt;unnamed&gt;' }}</td>
                 <td>{{ tf.content || '(empty)' }}</td>
@@ -365,6 +398,8 @@ function generateExcel(): void {
 }
 .fields-table td { padding: 4px 8px; border-bottom: 1px solid var(--bg-secondary); color: var(--text-primary); }
 .fields-table tr.readonly td { color: var(--text-muted); }
+.fields-table tr.clickable { cursor: pointer; }
+.fields-table tr.clickable:hover td { background: var(--bg-hover); }
 .fields-table .notes { color: var(--text-muted); font-size: 11px; font-style: italic; }
 .generate-btn {
   display: block; width: 100%; padding: 10px;
