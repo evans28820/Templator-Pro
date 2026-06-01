@@ -5,7 +5,6 @@ defineProps<{ side: 'left' | 'right' }>();
 const emit = defineEmits<{ resize: [delta: number] }>();
 
 const isDragging = ref(false);
-const dividerRef = ref<HTMLDivElement | null>(null);
 let startX = 0;
 
 function onMouseDown(e: MouseEvent): void {
@@ -18,9 +17,8 @@ function onMouseDown(e: MouseEvent): void {
 
 function onMouseMove(e: MouseEvent): void {
   if (!isDragging.value) return;
-  const delta = e.clientX - startX;
+  emit('resize', e.clientX - startX);
   startX = e.clientX;
-  emit('resize', delta);
 }
 
 function onMouseUp(): void {
@@ -36,40 +34,26 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div
-    ref="dividerRef"
-    class="resize-divider"
-    :class="{ dragging: isDragging }"
-    :data-side="side"
-    @mousedown="onMouseDown"
-  >
+  <div class="resize-divider" :class="{ dragging: isDragging }" @mousedown="onMouseDown">
     <div class="divider-handle" />
   </div>
 </template>
 
 <style scoped>
 .resize-divider {
-  width: 6px;
-  cursor: col-resize;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #252526;
-  flex-shrink: 0;
-  z-index: 10;
+  width: 6px; cursor: col-resize;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-secondary); flex-shrink: 0; z-index: 10;
 }
-.resize-divider:hover,
-.resize-divider.dragging {
-  background: #094771;
+.resize-divider:hover, .resize-divider.dragging {
+  background: var(--accent);
 }
 .divider-handle {
-  width: 2px;
-  height: 32px;
-  border-radius: 1px;
-  background: #555;
+  width: 2px; height: 32px; border-radius: 1px;
+  background: var(--border-primary);
 }
 .resize-divider:hover .divider-handle,
 .resize-divider.dragging .divider-handle {
-  background: #888;
+  background: #fff;
 }
 </style>

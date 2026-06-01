@@ -31,54 +31,30 @@ defineProps<{
 
 <style scoped>
 .top-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  height: 40px;
-  background: #252526;
-  border-bottom: 1px solid #3c3c3c;
-  font-size: 13px;
-  flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px; height: 40px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+  font-size: 13px; flex-shrink: 0;
 }
 .top-bar.empty {
-  color: #888;
+  color: var(--text-muted);
 }
-.file-icon {
-  color: #4ec9b0;
-  font-weight: bold;
-}
+.file-icon { color: var(--success); font-weight: bold; }
 .file-name {
-  color: #e0e0e0;
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--text-primary);
+  max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.box-type {
-  color: #569cd6;
-  font-weight: 500;
-}
-.dimensions {
-  color: #ce9178;
-}
-.saved-ago {
-  color: #888;
-  font-size: 12px;
-}
-.spacer {
-  flex: 1;
-}
+.box-type { color: #569cd6; font-weight: 500; }
+.dimensions { color: #ce9178; }
+.saved-ago { color: var(--text-muted); font-size: 12px; }
+.spacer { flex: 1; }
 .bar-btn {
   padding: 4px 12px;
-  border: 1px solid #555;
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
-  background: transparent;
-  color: #ccc;
-  cursor: pointer;
-  font-size: 12px;
+  background: transparent; color: var(--text-secondary);
+  cursor: pointer; font-size: 12px;
 }
-.bar-btn:hover {
-  background: #3c3c3c;
-}
+.bar-btn:hover { background: var(--bg-hover); }
 </style>

@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useCanvas } from '../../composables/useCanvas';
 import { useTemplateStore } from '../../stores/template.store';
+
 const emit = defineEmits<{ 'select-node': [nodeId: string | null] }>();
 
 const templateStore = useTemplateStore();
@@ -35,10 +36,6 @@ function handleMouseDown(e: MouseEvent): void {
     templateStore.selectNode(null);
     emit('select-node', null);
   }
-}
-
-function handleDblClick(): void {
-  onDblClick();
 }
 
 watch(() => viewport.value.zoom, (z) => {
@@ -76,9 +73,9 @@ onUnmounted(() => {
 <template>
   <div class="canvas-preview">
     <div class="canvas-toolbar">
-      <button class="tool-btn" title="Fit to canvas (Ctrl+0)" @click="fitToCanvas">− Fit +</button>
+      <button class="tool-btn" title="Fit to canvas (Ctrl+0)" @click="fitToCanvas">⊡ Fit</button>
       <span class="zoom-badge">{{ zoomDisplay }}</span>
-      <button class="tool-btn" title="Zoom in" @click="viewport.zoom = Math.min(10, viewport.zoom * 1.1)">+</button>
+      <button class="tool-btn" title="Zoom in" @click="viewport.zoom = Math.min(10, viewport.zoom * 1.1)">＋</button>
       <button class="tool-btn" title="Zoom out" @click="viewport.zoom = Math.max(0.1, viewport.zoom * 0.9)">−</button>
     </div>
     <canvas
@@ -89,7 +86,7 @@ onUnmounted(() => {
       @mouseup="onMouseUp"
       @mouseleave="onMouseUp"
       @wheel="(e) => onWheel(e)"
-      @dblclick="handleDblClick"
+      @dblclick="onDblClick"
       @contextmenu.prevent
     />
   </div>
@@ -100,33 +97,34 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #1e1e1e;
+  background: var(--bg-primary);
 }
 .canvas-toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background: #252526;
-  border-bottom: 1px solid #3c3c3c;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
   flex-shrink: 0;
 }
 .tool-btn {
-  padding: 2px 8px;
-  border: 1px solid #444;
-  border-radius: 3px;
-  background: transparent;
-  color: #ccc;
+  padding: 3px 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 12px;
 }
 .tool-btn:hover {
-  background: #3c3c3c;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 .zoom-badge {
   font-size: 11px;
-  color: #888;
-  min-width: 40px;
+  color: var(--text-muted);
+  min-width: 42px;
   text-align: center;
 }
 .preview-canvas {

@@ -1,21 +1,15 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
+export type ThemeMode = 'light' | 'dark';
+
 export const useSettingsStore = defineStore('settings', () => {
-  /* ── State ── */
-  /** Path to the month-icon .ai library file */
   const iconLibraryPath = ref<string>('');
-
-  /** Output folder for individual .ai + .tif files */
   const outputPath = ref<string>('');
-
-  /** Master output path for combined multi-artboard .ai file */
   const masterOutputPath = ref<string>('');
-
-  /** UI font size preference (pt) */
   const uiFontSize = ref<number>(12);
+  const theme = ref<ThemeMode>('light');
 
-  /* ── Actions ── */
   function setIconLibraryPath(path: string): void {
     iconLibraryPath.value = path;
   }
@@ -32,11 +26,20 @@ export const useSettingsStore = defineStore('settings', () => {
     uiFontSize.value = size;
   }
 
+  function setTheme(t: ThemeMode): void {
+    theme.value = t;
+  }
+
+  function toggleTheme(): void {
+    theme.value = theme.value === 'light' ? 'dark' : 'light';
+  }
+
   function reset(): void {
     iconLibraryPath.value = '';
     outputPath.value = '';
     masterOutputPath.value = '';
     uiFontSize.value = 12;
+    theme.value = 'light';
   }
 
   return {
@@ -44,10 +47,13 @@ export const useSettingsStore = defineStore('settings', () => {
     outputPath,
     masterOutputPath,
     uiFontSize,
+    theme,
     setIconLibraryPath,
     setOutputPath,
     setMasterOutputPath,
     setUiFontSize,
+    setTheme,
+    toggleTheme,
     reset,
   };
 });

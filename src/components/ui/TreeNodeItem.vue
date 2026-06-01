@@ -50,23 +50,16 @@ function onClick(): void {
   <div class="tree-node-wrapper">
     <div
       class="tree-node"
-      :class="{
-        selected: isSelected,
-        readonly: node.readOnly,
-      }"
+      :class="{ selected: isSelected, readonly: node.readOnly }"
       :style="{ paddingLeft: (depth * 16 + 8) + 'px' }"
       @click="onClick"
     >
-      <span
-        v-if="hasChildren"
-        class="toggle-icon"
-        @click.stop="onToggle"
-      >{{ isExpanded ? '▾' : '▸' }}</span>
+      <span v-if="hasChildren" class="toggle-icon" @click.stop="onToggle">
+        {{ isExpanded ? '▾' : '▸' }}
+      </span>
       <span v-else class="toggle-icon leaf">·</span>
       <span class="node-icon">{{ getIcon(node) }}</span>
-      <span class="node-label" :style="node.readOnly ? { color: '#888', fontStyle: 'italic' } : {}">
-        {{ getLabel(node) }}
-      </span>
+      <span class="node-label" :class="{ muted: node.readOnly }">{{ getLabel(node) }}</span>
       <span v-if="node.includeInExcel" class="badge e-badge">E</span>
       <span v-if="node.canShrink" class="badge s-badge">↔</span>
     </div>
@@ -85,57 +78,23 @@ function onClick(): void {
 
 <style scoped>
 .tree-node {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  cursor: pointer;
-  font-size: 12px;
-  white-space: nowrap;
-  user-select: none;
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 8px; cursor: pointer; font-size: 12px;
+  white-space: nowrap; user-select: none;
+  border-radius: 3px; margin: 0 4px;
 }
-.tree-node:hover {
-  background: #2a2d2e;
-}
-.tree-node.selected {
-  background: #094771;
-}
-.tree-node.readonly {
-  opacity: 0.6;
-  cursor: default;
-}
-.toggle-icon {
-  width: 12px;
-  flex-shrink: 0;
-  color: #888;
-  font-size: 10px;
-}
-.toggle-icon.leaf {
-  color: #444;
-}
-.node-icon {
-  color: #4ec9b0;
-  font-weight: bold;
-  flex-shrink: 0;
-}
-.node-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: #d4d4d4;
-}
-.badge {
-  flex-shrink: 0;
-  font-size: 9px;
-  padding: 0 3px;
-  border-radius: 2px;
-  font-weight: 600;
-}
-.e-badge {
-  background: #264f78;
-  color: #569cd6;
-}
-.s-badge {
-  background: #3a3d1e;
-  color: #ce9178;
-}
+.tree-node:hover { background: var(--bg-hover); }
+.tree-node.selected { background: var(--accent); color: #fff; }
+.tree-node.selected .node-label { color: #fff; }
+.tree-node.selected .node-icon { color: #fff; }
+.tree-node.selected .toggle-icon { color: rgba(255,255,255,0.6); }
+.tree-node.readonly { opacity: 0.6; cursor: default; }
+.toggle-icon { width: 14px; flex-shrink: 0; color: var(--text-muted); font-size: 10px; }
+.toggle-icon.leaf { color: var(--border-primary); }
+.node-icon { color: #4ec9b0; font-weight: bold; flex-shrink: 0; font-size: 11px; }
+.node-label { overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }
+.node-label.muted { color: var(--text-muted); font-style: italic; }
+.badge { flex-shrink: 0; font-size: 9px; padding: 1px 4px; border-radius: 3px; font-weight: 600; }
+.e-badge { background: #264f78; color: #569cd6; }
+.s-badge { background: #3a3d1e; color: #ce9178; }
 </style>

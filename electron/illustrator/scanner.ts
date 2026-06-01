@@ -42,8 +42,9 @@ export async function scanAiFile(filePath: string): Promise<ScanResult> {
   // Clean up temp files
   try { unlinkSync(outputFile); } catch { /* */ }
 
+  console.log('[scanner] scan result — pngOk:', raw.pngOk, 'tree nodes:', raw.tree.length, 'text frames:', raw.textFrames.length);
   let previewBase64: string | null = null;
-  if (existsSync(pngFile)) {
+  if (raw.pngOk && existsSync(pngFile)) {
     previewBase64 = readFileSync(pngFile, 'base64');
     try { unlinkSync(pngFile); } catch { /* */ }
   }
@@ -103,14 +104,22 @@ function generateScanJsx(aiPath: string, outputPath: string, pngPath: string): s
     'var artboardTop = artboardRect[1];',
     '',
     '// Export PNG preview',
-    'var pngOpts = new ExportOptionsPNG24();',
-    'pngOpts.antiAliasing = true;',
-    'pngOpts.artBoardClipping = true;',
-    'doc.exportFile(File("' + escapeJsx(pngPath) + '"), ExportType.PNG24, pngOpts);',
+    'var pngOk = false;',
+    'try {',
+    '  var pngFile = new File("' + escapeJsx(pngPath) + '");',
+    '  var pngOpts = new ExportOptionsPNG24();',
+    '  pngOpts.antiAliasing = true;',
+    '  pngOpts.artBoardClipping = true;',
+    '  doc.exportFile(pngFile, ExportType.PNG24, pngOpts);',
+    '  pngOk = pngFile.exists;',
+    '} catch(e) {',
+    '  // PNG export failed — continue without preview',
+    '}',
     '',
     'var result = {',
     '  artboardWidth: (artboardRect[2] - artboardRect[0]) / MM,',
     '  artboardHeight: (artboardRect[1] - artboardRect[3]) / MM,',
+    '  pngOk: pngOk,',
     '  layerNames: [],',
     '  textFrames: [],',
     '  tree: [],',
@@ -229,6 +238,7 @@ function generateScanJsx(aiPath: string, outputPath: string, pngPath: string): s
 interface ScanJsxOutput {
   artboardWidth: number;
   artboardHeight: number;
+  pngOk: boolean;
   layerNames: string[];
   textFrames: ScanJsxTextFrame[];
   tree: ScanJsxNode[];

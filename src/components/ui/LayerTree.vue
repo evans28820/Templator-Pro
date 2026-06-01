@@ -31,30 +31,22 @@ defineProps<{
 
 <style scoped>
 .layer-tree {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: #1e1e1e;
+  display: flex; flex-direction: column; height: 100%;
+  background: var(--bg-primary);
 }
 .tree-header {
-  padding: 6px 12px;
-  font-size: 11px;
-  color: #888;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  background: #252526;
-  border-bottom: 1px solid #3c3c3c;
+  padding: 8px 12px;
+  font-size: 11px; color: var(--text-muted);
+  font-weight: 600; letter-spacing: 0.5px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
   flex-shrink: 0;
 }
 .tree-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 4px 0;
+  flex: 1; overflow-y: auto; padding: 4px 0;
 }
 .tree-empty {
-  padding: 24px;
-  text-align: center;
-  color: #555;
-  font-size: 13px;
+  padding: 24px; text-align: center;
+  color: var(--text-muted); font-size: 13px;
 }
 </style>
