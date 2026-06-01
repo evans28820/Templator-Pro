@@ -254,6 +254,7 @@ interface ScanJsxNode {
 }
 
 function convertScanOutput(raw: ScanJsxOutput, aiPath: string, previewBase64: string | null): ScanResult {
+  console.log('[scanner] previewBase64 length:', previewBase64?.length ?? 0);
   const crypto = require('node:crypto');
   const hash = crypto.createHash('md5').update(aiPath).digest('hex');
 

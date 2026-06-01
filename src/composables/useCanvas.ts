@@ -145,14 +145,21 @@ export function useCanvas(
       const h = scanResult.value.artboardHeight * 3.78;
       ctx.drawImage(artworkImage.value, 0, 0, w, h);
     } else {
-      // Placeholder artboard rect
+      // Artwork not loaded — show placeholder
       const w = scanResult.value.artboardWidth * 3.78;
       const h = scanResult.value.artboardHeight * 3.78;
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#f5f5f5';
       ctx.fillRect(0, 0, w, h);
-      ctx.strokeStyle = '#555';
-      ctx.lineWidth = 1 / viewport.value.zoom;
+      ctx.strokeStyle = '#999';
+      ctx.lineWidth = 2 / viewport.value.zoom;
       ctx.strokeRect(0, 0, w, h);
+      // Watermark
+      ctx.fillStyle = '#ccc';
+      const fs = Math.max(10, 24 / viewport.value.zoom);
+      ctx.font = fs + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Artwork loading...', w / 2, h / 2);
+      ctx.textAlign = 'start';
     }
 
     // Draw group overlays
@@ -299,7 +306,11 @@ export function useCanvas(
   function loadArtwork(src: string): void {
     const img = new Image();
     img.onload = () => {
+      console.log('[canvas] artwork loaded', img.width, 'x', img.height);
       artworkImage.value = img;
+    };
+    img.onerror = (e) => {
+      console.error('[canvas] artwork failed to load:', (e as Event & { message?: string }).message || 'unknown error');
     };
     img.src = src;
   }
