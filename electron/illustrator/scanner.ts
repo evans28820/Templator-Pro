@@ -104,6 +104,7 @@ function generateScanJsx(aiPath: string, outputPath: string, pngPath: string): s
     '  return Q + r + Q;',
     '}',
     '',
+    'try {',
     'var doc = app.open(File("' + escapeJsx(aiPath) + '"));',
     'var artboard = doc.artboards[0];',
     'var artboardRect = artboard.artboardRect;',
@@ -240,6 +241,12 @@ function generateScanJsx(aiPath: string, outputPath: string, pngPath: string): s
     'outFile.close();',
     '',
     'doc.close(SaveOptions.DONOTSAVECHANGES);',
+    '} catch(e) {',
+    '  var errFile = File("' + escapeJsx(outputPath) + '");',
+    '  errFile.open("w");',
+    '  errFile.write(\'{"error":"\' + String(e) + \'"}\');',
+    '  errFile.close();',
+    '}',
   ].join('\n');
 }
 

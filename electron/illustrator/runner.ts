@@ -89,7 +89,6 @@ function executeViaCom(
     '  WScript.StdErr.WriteLine "Illustrator COM error: " & Err.Description',
     '  WScript.Quit 1',
     'End If',
-    'On Error GoTo 0',
     '',
     'app.DoJavaScriptFile "' + scriptPath + '"',
     'If Err.Number <> 0 Then',
