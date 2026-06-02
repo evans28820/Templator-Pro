@@ -140,7 +140,7 @@ export function useCanvas(
     const pad = 40;
     const zw = canvas.width / ((target.w + pad * 2 / 3.78) * 3.78);
     const zh = canvas.height / ((target.h + pad * 2 / 3.78) * 3.78);
-    const zoom = Math.min(zw, zh, 3);
+    const zoom = Math.max(0.5, Math.min(zw, zh, 4) * 1.3);
     viewport.value.zoom = zoom;
     viewport.value.offsetX = canvas.width / 2 - cx * 3.78 * zoom;
     viewport.value.offsetY = canvas.height / 2 - cy * 3.78 * zoom;
@@ -245,9 +245,40 @@ export function useCanvas(
   }
 
   function drawTree(ctx: CanvasRenderingContext2D, nodes: TreeNode[], zoom: number): void {
+    // In Content mode, only draw selected node highlight — skip overlay boxes
+    if (viewMode.value === 'content') {
+      drawSelectionOnly(ctx, nodes, zoom);
+      return;
+    }
+    // Boxes mode: draw all colored overlays
+    drawAllOverlays(ctx, nodes, zoom);
+  }
+
+  function drawSelectionOnly(ctx: CanvasRenderingContext2D, nodes: TreeNode[], zoom: number): void {
     const MM = 3.78;
     for (const node of nodes) {
-      if (node.w <= 0 || node.h <= 0) { drawTree(ctx, node.children, zoom); continue; }
+      if (node.id !== selectedNodeId.value) { drawSelectionOnly(ctx, node.children, zoom); continue; }
+      if (node.w <= 0 || node.h <= 0) continue;
+      const x = node.x * MM, y = node.y * MM, w = node.w * MM, h = node.h * MM;
+      ctx.fillStyle = 'rgba(83,74,183,0.15)';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = '#534AB7';
+      ctx.lineWidth = 2 / zoom;
+      ctx.setLineDash([4 / zoom, 3 / zoom]);
+      ctx.strokeRect(x, y, w, h);
+      ctx.setLineDash([]);
+      const fs = Math.max(9, 12 / zoom);
+      ctx.font = `${fs}px sans-serif`;
+      ctx.fillStyle = '#534AB7';
+      ctx.fillText(node.name || '', x, y - 4 / zoom);
+      drawSelectionOnly(ctx, node.children, zoom);
+    }
+  }
+
+  function drawAllOverlays(ctx: CanvasRenderingContext2D, nodes: TreeNode[], zoom: number): void {
+    const MM = 3.78;
+    for (const node of nodes) {
+      if (node.w <= 0 || node.h <= 0) { drawAllOverlays(ctx, node.children, zoom); continue; }
 
       const colors = getGroupColor(node);
       const isSelected = node.id === selectedNodeId.value;
@@ -294,7 +325,7 @@ export function useCanvas(
         ctx.globalAlpha = 1;
       }
 
-      drawTree(ctx, node.children, zoom);
+      drawAllOverlays(ctx, node.children, zoom);
     }
   }
 
