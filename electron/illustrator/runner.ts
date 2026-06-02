@@ -24,7 +24,7 @@ export interface JsxRunResult {
 
 export async function runJsx(
   jsxContent: string,
-  illustrator: IllustratorInstall,
+  _illustrator: IllustratorInstall,
   timeoutMs = 120_000,
 ): Promise<JsxRunResult> {
   const startTime = Date.now();
@@ -32,10 +32,8 @@ export async function runJsx(
 
   try {
     writeFileSync(tmpFile, jsxContent, 'utf-8');
-
-    const result = await executeJsxScript(tmpFile, illustrator.path, timeoutMs);
+    const result = await executeJsxScript(tmpFile, timeoutMs);
     const duration = Date.now() - startTime;
-
     return {
       success: result.success,
       outputPath: result.outputPath ?? null,
@@ -62,7 +60,6 @@ interface ExecResult {
 
 function executeJsxScript(
   scriptPath: string,
-  _illustratorPath: string,
   timeoutMs: number,
 ): Promise<ExecResult> {
   return new Promise((resolve) => {
@@ -94,7 +91,11 @@ function executeViaCom(
     'End If',
     'On Error GoTo 0',
     '',
-    `app.DoJavaScriptFile "${scriptPath.replace(/\\/g, '\\\\')}"`,
+    'app.DoJavaScriptFile "' + scriptPath + '"',
+    'If Err.Number <> 0 Then',
+    '  WScript.StdErr.WriteLine "JSX error: " & Err.Description',
+    '  WScript.Quit 2',
+    'End If',
     '',
     'WScript.Quit 0',
   ].join('\r\n');
@@ -114,12 +115,12 @@ function executeViaCom(
 
   proc.on('close', (code) => {
     try { if (existsSync(vbsPath)) unlinkSync(vbsPath); } catch { /* */ }
-    if (code === 0 || code === null) {
+    if (code === 0) {
       resolve({ success: true });
     } else {
       resolve({
         success: false,
-        error: stderr.trim() || `Illustrator VBScript exited code ${code}`,
+        error: stderr.trim() || 'Illustrator script failed (exit code ' + code + ')',
       });
     }
   });
@@ -132,7 +133,7 @@ function executeViaCom(
   setTimeout(() => {
     try { proc.kill(); } catch { /* */ }
     try { if (existsSync(vbsPath)) unlinkSync(vbsPath); } catch { /* */ }
-    resolve({ success: false, error: `Job timed out after ${timeoutMs / 1000}s` });
+    resolve({ success: false, error: 'Job timed out after ' + (timeoutMs / 1000) + 's' });
   }, timeoutMs);
 }
 
@@ -143,7 +144,7 @@ function executeViaAppleScript(
   timeoutMs: number,
   resolve: (r: ExecResult) => void,
 ): void {
-  const scpt = `tell application "Adobe Illustrator" to do javascript file "${scriptPath}"`;
+  const scpt = 'tell application "Adobe Illustrator" to do javascript file "' + scriptPath + '"';
 
   const proc = spawn('osascript', ['-e', scpt], {
     timeout: timeoutMs,
@@ -161,7 +162,7 @@ function executeViaAppleScript(
     } else {
       resolve({
         success: false,
-        error: stderr.trim() || `AppleScript exited code ${code}`,
+        error: stderr.trim() || 'AppleScript exited code ' + code,
       });
     }
   });
@@ -172,6 +173,6 @@ function executeViaAppleScript(
 
   setTimeout(() => {
     try { proc.kill(); } catch { /* */ }
-    resolve({ success: false, error: `Job timed out after ${timeoutMs / 1000}s` });
+    resolve({ success: false, error: 'Job timed out after ' + (timeoutMs / 1000) + 's' });
   }, timeoutMs);
 }

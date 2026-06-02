@@ -9,7 +9,7 @@
  * All bounds converted to mm relative to artboard top-left.
  */
 
-import { readFileSync, unlinkSync, existsSync } from 'node:fs';
+import { readFileSync, unlinkSync, existsSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runJsx } from './runner';
@@ -34,9 +34,14 @@ export async function scanAiFile(filePath: string): Promise<ScanResult> {
 
   let raw: ScanJsxOutput;
   try {
-    raw = JSON.parse(readFileSync(outputFile, 'utf-8'));
-  } catch {
-    throw new Error('Failed to parse scan output');
+    const rawText = readFileSync(outputFile, 'utf-8');
+    raw = JSON.parse(rawText);
+  } catch (err) {
+    const exists = existsSync(outputFile);
+    const sizes = exists ? statSync(outputFile).size : 0;
+    throw new Error(
+      `Failed to parse scan output (file exists: ${exists}, size: ${sizes}): ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   // Clean up temp files
