@@ -1,11 +1,11 @@
 /**
- * Illustrator JSX runner — subprocess execution.
+ * Illustrator JSX runner — COM/VBScript bridge execution.
  *
- * Approach: Write JSX to temp file, launch Illustrator with it as argument.
- *   Windows: start /wait Illustrator.exe script.jsx
- *   macOS:   open -W -a "Adobe Illustrator" script.jsx
+ * Windows: Uses VBScript + COM (CreateObject("Illustrator.Application"))
+ *   to call DoJavaScriptFile() — no security dialogs, no prompts.
+ * macOS: Uses osascript to send JSX via AppleScript.
  *
- * Includes watchdog timer (120s) and stable-write output polling.
+ * Watchdog timeout: 120s.
  */
 
 import { spawn } from 'node:child_process';
@@ -36,19 +36,10 @@ export async function runJsx(
     const result = await executeJsxScript(tmpFile, illustrator.path, timeoutMs);
     const duration = Date.now() - startTime;
 
-    if (result.success) {
-      return {
-        success: true,
-        outputPath: result.outputPath ?? null,
-        error: null,
-        durationMs: duration,
-      };
-    }
-
     return {
-      success: false,
-      outputPath: null,
-      error: result.error || 'JSX execution failed',
+      success: result.success,
+      outputPath: result.outputPath ?? null,
+      error: result.error ?? null,
       durationMs: duration,
     };
   } catch (err) {
@@ -59,8 +50,7 @@ export async function runJsx(
       durationMs: Date.now() - startTime,
     };
   } finally {
-    // Clean up temp file
-    try { if (existsSync(tmpFile)) unlinkSync(tmpFile); } catch { /* ignore */ }
+    try { if (existsSync(tmpFile)) unlinkSync(tmpFile); } catch { /* */ }
   }
 }
 
@@ -72,53 +62,116 @@ interface ExecResult {
 
 function executeJsxScript(
   scriptPath: string,
-  illustratorPath: string,
+  _illustratorPath: string,
   timeoutMs: number,
 ): Promise<ExecResult> {
   return new Promise((resolve) => {
-    const isWin = platform() === 'win32';
-    const isMac = platform() === 'darwin';
-
-    let proc;
-    if (isWin) {
-      // Windows: launch Illustrator with script
-      proc = spawn('cmd.exe', [
-        '/c', 'start', '""', '/wait', illustratorPath, scriptPath,
-      ], { timeout: timeoutMs, windowsHide: true });
-    } else if (isMac) {
-      proc = spawn('open', [
-        '-W', '-a', illustratorPath, scriptPath,
-      ], { timeout: timeoutMs });
+    if (platform() === 'win32') {
+      executeViaCom(scriptPath, timeoutMs, resolve);
+    } else if (platform() === 'darwin') {
+      executeViaAppleScript(scriptPath, timeoutMs, resolve);
     } else {
       resolve({ success: false, error: 'Unsupported platform' });
-      return;
     }
-
-    let stderr = '';
-
-    proc.stderr?.on('data', (data: Buffer) => {
-      stderr += data.toString();
-    });
-
-    proc.on('close', (code) => {
-      if (code === 0 || code === null) {
-        resolve({ success: true });
-      } else {
-        resolve({
-          success: false,
-          error: stderr || `Illustrator exited with code ${code}`,
-        });
-      }
-    });
-
-    proc.on('error', (err) => {
-      resolve({ success: false, error: err.message });
-    });
-
-    // Watchdog
-    setTimeout(() => {
-      try { proc.kill(); } catch { /* ignore */ }
-      resolve({ success: false, error: `Job timed out after ${timeoutMs / 1000}s` });
-    }, timeoutMs);
   });
+}
+
+/* ── Windows: VBScript + COM bridge ── */
+
+function executeViaCom(
+  scriptPath: string,
+  timeoutMs: number,
+  resolve: (r: ExecResult) => void,
+): void {
+  const vbsPath = scriptPath.replace(/\.jsx$/, '.vbs');
+  const vbs = [
+    'Dim app',
+    'On Error Resume Next',
+    'Set app = CreateObject("Illustrator.Application")',
+    'If Err.Number <> 0 Then',
+    '  WScript.StdErr.WriteLine "Illustrator COM error: " & Err.Description',
+    '  WScript.Quit 1',
+    'End If',
+    'On Error GoTo 0',
+    '',
+    `app.DoJavaScriptFile "${scriptPath.replace(/\\/g, '\\\\')}"`,
+    '',
+    'WScript.Quit 0',
+  ].join('\r\n');
+
+  writeFileSync(vbsPath, vbs, 'utf-8');
+
+  const proc = spawn('cscript', ['//Nologo', vbsPath], {
+    timeout: timeoutMs,
+    windowsHide: true,
+  });
+
+  let stderr = '';
+
+  proc.stderr?.on('data', (data: Buffer) => {
+    stderr += data.toString();
+  });
+
+  proc.on('close', (code) => {
+    try { if (existsSync(vbsPath)) unlinkSync(vbsPath); } catch { /* */ }
+    if (code === 0 || code === null) {
+      resolve({ success: true });
+    } else {
+      resolve({
+        success: false,
+        error: stderr.trim() || `Illustrator VBScript exited code ${code}`,
+      });
+    }
+  });
+
+  proc.on('error', (err) => {
+    try { if (existsSync(vbsPath)) unlinkSync(vbsPath); } catch { /* */ }
+    resolve({ success: false, error: err.message });
+  });
+
+  setTimeout(() => {
+    try { proc.kill(); } catch { /* */ }
+    try { if (existsSync(vbsPath)) unlinkSync(vbsPath); } catch { /* */ }
+    resolve({ success: false, error: `Job timed out after ${timeoutMs / 1000}s` });
+  }, timeoutMs);
+}
+
+/* ── macOS: AppleScript bridge ── */
+
+function executeViaAppleScript(
+  scriptPath: string,
+  timeoutMs: number,
+  resolve: (r: ExecResult) => void,
+): void {
+  const scpt = `tell application "Adobe Illustrator" to do javascript file "${scriptPath}"`;
+
+  const proc = spawn('osascript', ['-e', scpt], {
+    timeout: timeoutMs,
+  });
+
+  let stderr = '';
+
+  proc.stderr?.on('data', (data: Buffer) => {
+    stderr += data.toString();
+  });
+
+  proc.on('close', (code) => {
+    if (code === 0 || code === null) {
+      resolve({ success: true });
+    } else {
+      resolve({
+        success: false,
+        error: stderr.trim() || `AppleScript exited code ${code}`,
+      });
+    }
+  });
+
+  proc.on('error', (err) => {
+    resolve({ success: false, error: err.message });
+  });
+
+  setTimeout(() => {
+    try { proc.kill(); } catch { /* */ }
+    resolve({ success: false, error: `Job timed out after ${timeoutMs / 1000}s` });
+  }, timeoutMs);
 }
