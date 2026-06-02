@@ -1,123 +1,147 @@
 /**
  * Canvas pan/zoom/draw composable.
- * Pure mathematical approach — zero DOM measurement.
- * All spatial values in mm, converted to screen pixels on draw.
+ * All spatial values in mm. Pixels per mm at 1x: 3.78.
  */
 
 import { ref, computed, type Ref } from 'vue';
 import type { ScanResult, TreeNode } from '../types';
 
-export interface CanvasViewport {
-  offsetX: number; offsetY: number; zoom: number;
-}
+export interface CanvasViewport { offsetX: number; offsetY: number; zoom: number; }
 
-const GROUP_COLORS: Record<string, { stroke: string; fill: string; fillHover: string; fillSelected: string }> = {
-  Remark:  { stroke: '#534AB7', fill: 'rgba(83,74,183,0.08)',  fillHover: 'rgba(83,74,183,0.18)',  fillSelected: 'rgba(83,74,183,0.28)' },
-  Bottom:  { stroke: '#0F6E56', fill: 'rgba(15,110,86,0.08)',  fillHover: 'rgba(15,110,86,0.18)',  fillSelected: 'rgba(15,110,86,0.28)' },
-  Top:     { stroke: '#0F6E56', fill: 'rgba(15,110,86,0.08)',  fillHover: 'rgba(15,110,86,0.18)',  fillSelected: 'rgba(15,110,86,0.28)' },
-  Left:    { stroke: '#185FA5', fill: 'rgba(24,95,165,0.08)',  fillHover: 'rgba(24,95,165,0.18)',  fillSelected: 'rgba(24,95,165,0.28)' },
-  Right:   { stroke: '#185FA5', fill: 'rgba(24,95,165,0.08)',  fillHover: 'rgba(24,95,165,0.18)',  fillSelected: 'rgba(24,95,165,0.28)' },
-  LOGO:    { stroke: '#888780', fill: 'rgba(136,135,128,0.06)', fillHover: 'rgba(136,135,128,0.14)', fillSelected: 'rgba(136,135,128,0.14)' },
+const GROUP_COLORS: Record<string, { stroke: string; fill: string }> = {
+  Remark:  { stroke: '#534AB7', fill: 'rgba(83,74,183,0.08)' },
+  Bottom:  { stroke: '#0F6E56', fill: 'rgba(15,110,86,0.08)' },
+  Top:     { stroke: '#0F6E56', fill: 'rgba(15,110,86,0.08)' },
+  Left:    { stroke: '#185FA5', fill: 'rgba(24,95,165,0.08)' },
+  Right:   { stroke: '#185FA5', fill: 'rgba(24,95,165,0.08)' },
+  LOGO:    { stroke: '#888780', fill: 'rgba(136,135,128,0.06)' },
 };
-const DEFAULT_COLORS = { stroke: '#888780', fill: 'transparent', fillHover: 'rgba(136,135,128,0.10)', fillSelected: 'rgba(136,135,128,0.20)' };
-const CANVAS_BG = '#ffffff';
-const DASHED_PURPLE = '#534AB7';
-const CONFIGURED_DOT = '#ce9178';
-const HINT_TEXT_COLOR = '#666666';
-const FACE_NAMES = ['bottom', 'top', 'left', 'right'];
+const DEFAULT_COLORS = { stroke: '#888780', fill: 'transparent' };
 
 export function useCanvas(
   canvasRef: Ref<HTMLCanvasElement | null>,
   scanResult: Ref<ScanResult | null>,
   selectedNodeId: Ref<string | null>,
-  configuredFaces: Ref<Set<string>>,
+  _configuredFaces: Ref<Set<string>>,
 ) {
   const viewport = ref<CanvasViewport>({ offsetX: 0, offsetY: 0, zoom: 1 });
-  const isPanning = ref(false);
-  const hoveredNodeId = ref<string | null>(null);
-  const panStart = ref({ x: 0, y: 0 });
   const artworkImage = ref<HTMLImageElement | null>(null);
   const artworkLoading = ref(false);
   const showHint = ref(true);
   const viewMode = ref<'content' | 'boxes'>('content');
-  const pendingClick = ref<TreeNode | null>(null);
 
-  function toggleViewMode(): void {
-    viewMode.value = viewMode.value === 'content' ? 'boxes' : 'content';
-  }
+  // Feedback dots: shows where user clicked + what was found
+  const feedbackDots = ref<Array<{ x: number; y: number; label: string; t: number }>>([]);
+
+  function toggleViewMode(): void { viewMode.value = viewMode.value === 'content' ? 'boxes' : 'content'; }
 
   const pxPerMm = computed(() => viewport.value.zoom * 3.78);
 
-  function mmToScreen(mmX: number, mmY: number): { x: number; y: number } {
-    return { x: mmX * pxPerMm.value + viewport.value.offsetX, y: mmY * pxPerMm.value + viewport.value.offsetY };
-  }
+  /* ── Coordinate transforms ── */
   function screenToMm(sx: number, sy: number): { x: number; y: number } {
     return { x: (sx - viewport.value.offsetX) / pxPerMm.value, y: (sy - viewport.value.offsetY) / pxPerMm.value };
   }
 
-  function getGroupColor(node: TreeNode) {
-    for (const [key, colors] of Object.entries(GROUP_COLORS)) {
-      if (node.name === key || node.name.startsWith(key)) return colors;
-    }
-    return DEFAULT_COLORS;
-  }
-
-  /* ── FIX 1: Initial zoom → 70% canvas height, top portion ── */
+  /* ── Zoom ── */
   function initialZoom(): void {
     if (!canvasRef.value || !scanResult.value) return;
-    const canvas = canvasRef.value;
-    const h = scanResult.value.artboardHeight;
-    const w = scanResult.value.artboardWidth;
-    const targetH = canvas.height * 0.7;
-    const zoom = targetH / (h * 3.78);
-    const clamped = Math.max(0.3, Math.min(2, zoom));
-    viewport.value = {
-      zoom: clamped,
-      offsetX: (canvas.width - w * 3.78 * clamped) / 2,
-      offsetY: 0,
-    };
+    const c = canvasRef.value;
+    const w = scanResult.value.artboardWidth, h = scanResult.value.artboardHeight;
+    const z = Math.max(0.3, Math.min(1, (c.height * 0.7) / (h * 3.78)));
+    viewport.value = { zoom: z, offsetX: (c.width - w * 3.78 * z) / 2, offsetY: 0 };
     showHint.value = false;
   }
 
   function fitToCanvas(): void {
     if (!canvasRef.value || !scanResult.value) return;
-    const canvas = canvasRef.value;
-    const w = scanResult.value.artboardWidth;
-    const h = scanResult.value.artboardHeight;
-    const pad = 40;
-    const zx = (canvas.width - pad * 2) / (w * 3.78);
-    const zy = (canvas.height - pad * 2) / (h * 3.78);
-    const zoom = Math.min(zx, zy, 2);
-    viewport.value = {
-      zoom,
-      offsetX: (canvas.width - w * 3.78 * zoom) / 2,
-      offsetY: (canvas.height - h * 3.78 * zoom) / 2,
-    };
+    const c = canvasRef.value;
+    const w = scanResult.value.artboardWidth, h = scanResult.value.artboardHeight;
+    const z = Math.min((c.width - 60) / (w * 3.78), (c.height - 60) / (h * 3.78), 2);
+    viewport.value = { zoom: z, offsetX: (c.width - w * 3.78 * z) / 2, offsetY: (c.height - h * 3.78 * z) / 2 };
     showHint.value = false;
   }
 
-  function zoomAtPoint(sx: number, sy: number, factor: number): void {
-    const before = screenToMm(sx, sy);
-    viewport.value.zoom = Math.max(0.1, Math.min(10, viewport.value.zoom * factor));
-    const after = screenToMm(sx, sy);
-    viewport.value.offsetX += (after.x - before.x) * pxPerMm.value;
-    viewport.value.offsetY += (after.y - before.y) * pxPerMm.value;
-    showHint.value = false;
-  }
-
-  /* ── FIX 2: Zoom to node ── */
+  /** Pan + zoom to show the selected node clearly. Minimum zoom 0.6x. */
   function centerOnNode(node: TreeNode): void {
     if (!canvasRef.value) return;
-    const canvas = canvasRef.value;
-    const cx = node.x + node.w / 2;
-    const cy = node.y + node.h / 2;
-    // Pan only — no zoom change
-    viewport.value.offsetX = canvas.width / 2 - cx * 3.78 * viewport.value.zoom;
-    viewport.value.offsetY = canvas.height / 2 - cy * 3.78 * viewport.value.zoom;
+    const c = canvasRef.value;
+    const mw = Math.max(node.w, 50), mh = Math.max(node.h, 30);
+    const zw = (c.width * 0.7) / (mw * 3.78);
+    const zh = (c.height * 0.7) / (mh * 3.78);
+    const targetZoom = Math.max(0.6, Math.min(zw, zh, 3));
+    const cx = (node.x + node.w / 2) * 3.78;
+    const cy = (node.y + node.h / 2) * 3.78;
+    viewport.value.zoom = targetZoom;
+    viewport.value.offsetX = c.width / 2 - cx * targetZoom;
+    viewport.value.offsetY = c.height / 2 - cy * targetZoom;
+  }
+
+  /* ── Hit test: deepest node at click point ── */
+  function hitTest(sx: number, sy: number): TreeNode | null {
+    if (!scanResult.value) return null;
+    const { x: mx, y: my } = screenToMm(sx, sy);
+    return findDeepest(scanResult.value.tree, mx, my);
+  }
+
+  function findDeepest(nodes: TreeNode[], mx: number, my: number): TreeNode | null {
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const n = nodes[i];
+      if (n.w > 1 && n.h > 1 && mx >= n.x && mx <= n.x + n.w && my >= n.y && my <= n.y + n.h) {
+        const child = findDeepest(n.children, mx, my);
+        return child || n;
+      }
+    }
+    return null;
+  }
+
+  /* ── Mouse handlers ── */
+  let panStart = { x: 0, y: 0 };
+  let pendingHit: TreeNode | null = null;
+  let isPan = false;
+
+  function onWheel(e: WheelEvent): void {
+    const rect = canvasRef.value?.getBoundingClientRect();
+    if (!rect) return;
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    const z = viewport.value.zoom;
+    const drawX = sx / z - viewport.value.offsetX;
+    const drawY = sy / z - viewport.value.offsetY;
+    const f = e.deltaY < 0 ? 1.1 : 0.9;
+    const nz = Math.max(0.1, Math.min(10, z * f));
+    viewport.value.zoom = nz;
+    viewport.value.offsetX = sx / nz - drawX;
+    viewport.value.offsetY = sy / nz - drawY;
+    showHint.value = false;
+  }
+
+  function onMouseDown(e: MouseEvent): void {
+    const rect = canvasRef.value?.getBoundingClientRect();
+    if (!rect) return;
+    panStart = { x: e.clientX, y: e.clientY };
+    isPan = false;
+    const hit = hitTest(e.clientX - rect.left, e.clientY - rect.top);
+    pendingHit = (hit && !hit.readOnly) ? hit : null;
+  }
+
+  function onMouseMove(e: MouseEvent): void {
+    const dx = Math.abs(e.clientX - panStart.x), dy = Math.abs(e.clientY - panStart.y);
+    if (pendingHit && (dx > 5 || dy > 5)) { pendingHit = null; isPan = true; }
+    if (isPan || (!pendingHit && (dx > 2 || dy > 2))) {
+      isPan = true;
+      viewport.value.offsetX += e.clientX - panStart.x;
+      viewport.value.offsetY += e.clientY - panStart.y;
+      panStart = { x: e.clientX, y: e.clientY };
+      showHint.value = false;
+    }
+  }
+
+  function onMouseUp(): TreeNode | null {
+    const hit = (!isPan && pendingHit) ? pendingHit : null;
+    pendingHit = null; isPan = false;
+    return hit;
   }
 
   /* ── Drawing ── */
-
   function draw(): void {
     const canvas = canvasRef.value;
     if (!canvas) return;
@@ -130,268 +154,127 @@ export function useCanvas(
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
-    ctx.fillStyle = CANVAS_BG;
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
 
-    if (!scanResult.value) { drawPlaceholder(ctx, canvas.clientWidth, canvas.clientHeight); return; }
+    if (!scanResult.value) {
+      ctx.fillStyle = '#999'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('Scan an .ai file to preview', canvas.clientWidth / 2, canvas.clientHeight / 2);
+      ctx.textAlign = 'start';
+      return;
+    }
+
+    const z = viewport.value.zoom, ox = viewport.value.offsetX, oy = viewport.value.offsetY;
+    const aw = scanResult.value.artboardWidth * 3.78, ah = scanResult.value.artboardHeight * 3.78;
 
     ctx.save();
-    ctx.scale(viewport.value.zoom, viewport.value.zoom);
-    ctx.translate(viewport.value.offsetX, viewport.value.offsetY);
+    ctx.translate(ox, oy);
+    ctx.scale(z, z);
 
+    // Artwork or placeholder
     if (artworkImage.value) {
-      ctx.drawImage(artworkImage.value, 0, 0, scanResult.value.artboardWidth * 3.78, scanResult.value.artboardHeight * 3.78);
-    } else if (artworkLoading.value) {
-      // Loading state
-      const w = scanResult.value.artboardWidth * 3.78;
-      const h = scanResult.value.artboardHeight * 3.78;
-      ctx.fillStyle = '#fafafa';
-      ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = '#aaa';
-      const fs = Math.max(9, 14 / viewport.value.zoom);
-      ctx.font = fs + 'px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('Loading artwork...', w / 2, h / 2);
-      ctx.textAlign = 'start';
+      ctx.drawImage(artworkImage.value, 0, 0, aw, ah);
     } else {
-      // Clean placeholder
-      const w = scanResult.value.artboardWidth * 3.78;
-      const h = scanResult.value.artboardHeight * 3.78;
-      ctx.fillStyle = '#fafafa';
-      ctx.fillRect(0, 0, w, h);
-      ctx.strokeStyle = '#ddd';
-      ctx.lineWidth = 2 / viewport.value.zoom;
-      ctx.strokeRect(0, 0, w, h);
-      ctx.save();
-      ctx.fillStyle = '#ddd';
-      ctx.font = `${Math.max(9, 14 / viewport.value.zoom)}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillText('Preview unavailable — scan to load artwork', w / 2, h / 2 - 30);
-      ctx.fillText(`${scanResult.value.artboardWidth.toFixed(0)} × ${scanResult.value.artboardHeight.toFixed(0)} mm`, w / 2, h / 2);
-      ctx.textAlign = 'start';
-      ctx.restore();
-      // Draw group overlays even without artwork
-      drawTree(ctx, scanResult.value.tree, viewport.value.zoom);
-      if (viewMode.value === 'content') { drawTextContents(ctx, scanResult.value.tree, viewport.value.zoom); }
-      ctx.restore();
-      if (showHint.value) drawHint(ctx, canvas.clientWidth, canvas.clientHeight);
-      return;
+      ctx.fillStyle = '#f5f5f5'; ctx.fillRect(0, 0, aw, ah);
+      ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1 / z; ctx.strokeRect(0, 0, aw, ah);
+      if (artworkLoading.value) {
+        ctx.fillStyle = '#aaa'; ctx.font = `${Math.max(9, 14 / z)}px sans-serif`; ctx.textAlign = 'center';
+        ctx.fillText('Loading...', aw / 2, ah / 2); ctx.textAlign = 'start';
+      }
     }
 
-    drawTree(ctx, scanResult.value.tree, viewport.value.zoom);
-    if (viewMode.value === 'content') { drawTextContents(ctx, scanResult.value.tree, viewport.value.zoom); }
+    // Overlays
+    if (viewMode.value === 'boxes') {
+      drawOverlays(ctx, scanResult.value.tree, z);
+    }
+
+    // Selected highlight
+    if (selectedNodeId.value) {
+      drawSelected(ctx, scanResult.value.tree, z, selectedNodeId.value);
+    }
+
+    // Content text
+    if (viewMode.value === 'content') {
+      drawContents(ctx, scanResult.value.tree, z);
+    }
+
     ctx.restore();
-    if (showHint.value) drawHint(ctx, canvas.clientWidth, canvas.clientHeight);
+
+    // Feedback dots (screen space, not drawing space)
+    const now = Date.now();
+    feedbackDots.value = feedbackDots.value.filter(d => now - d.t < 3000);
+    for (const d of feedbackDots.value) {
+      const age = now - d.t, alpha = Math.max(0, 1 - age / 3000);
+      ctx.save();
+      ctx.fillStyle = `rgba(255,0,0,${alpha})`;
+      ctx.beginPath(); ctx.arc(d.x, d.y, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+      ctx.font = '11px monospace'; ctx.fillText(d.label, d.x + 8, d.y - 8);
+      ctx.restore();
+    }
+
+    if (showHint.value) {
+      ctx.fillStyle = '#aaa'; ctx.font = '9px sans-serif';
+      ctx.fillText('Scroll=zoom  •  Drag=pan  •  Click=select  •  Dblclick=fit', 8, canvas.clientHeight - 6);
+    }
   }
 
-  function drawHint(ctx: CanvasRenderingContext2D, _cw: number, ch: number): void {
-    ctx.fillStyle = HINT_TEXT_COLOR;
-    ctx.font = '8px sans-serif';
-    ctx.fillText('Ctrl+scroll zoom  •  drag to pan  •  double-click to fit', 8, ch - 8);
+  function drawOverlays(ctx: CanvasRenderingContext2D, nodes: TreeNode[], z: number): void {
+    for (const n of nodes) {
+      if (n.w <= 0 || n.h <= 0) { drawOverlays(ctx, n.children, z); continue; }
+      const c = GROUP_COLORS[n.name] || DEFAULT_COLORS;
+      const x = n.x * 3.78, y = n.y * 3.78, w = n.w * 3.78, h = n.h * 3.78;
+      ctx.fillStyle = c.fill; ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = c.stroke; ctx.lineWidth = 1.5 / z; ctx.strokeRect(x, y, w, h);
+      drawOverlays(ctx, n.children, z);
+    }
   }
 
-  /** Render text frame contents at their positions (Content mode) */
-  function drawTextContents(ctx: CanvasRenderingContext2D, nodes: TreeNode[], zoom: number): void {
-    const MM = 3.78;
-    for (const node of nodes) {
-      if (node.type === 'textFrame' && node.content && node.w > 0 && node.h > 0) {
-        const x = node.x * MM;
-        const y = node.y * MM;
-        const w = node.w * MM;
-        const h = node.h * MM;
-        const fontSize = Math.min(h * 0.7, Math.max(4, 10 / zoom));
+  function drawSelected(ctx: CanvasRenderingContext2D, nodes: TreeNode[], z: number, targetId: string): void {
+    for (const n of nodes) {
+      if (n.id === targetId && n.w > 0 && n.h > 0) {
+        const x = n.x * 3.78, y = n.y * 3.78, w = n.w * 3.78, h = n.h * 3.78;
+        ctx.fillStyle = 'rgba(83,74,183,0.15)'; ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = '#534AB7'; ctx.lineWidth = 2.5 / z;
+        ctx.setLineDash([5 / z, 3 / z]); ctx.strokeRect(x, y, w, h); ctx.setLineDash([]);
+      }
+      drawSelected(ctx, n.children, z, targetId);
+    }
+  }
+
+  function drawContents(ctx: CanvasRenderingContext2D, nodes: TreeNode[], z: number): void {
+    for (const n of nodes) {
+      if (n.type === 'textFrame' && n.content && n.w > 0 && n.h > 0) {
+        const fs = Math.max(4, Math.min(n.h * 0.7 * 3.78, 10 / z));
         ctx.save();
-        ctx.fillStyle = node.name ? '#333' : '#999';
-        ctx.font = `${fontSize}px sans-serif`;
-        ctx.textBaseline = 'top';
-        const maxChars = Math.floor(w / (fontSize * 0.55));
-        const text = node.content.length > maxChars ? node.content.slice(0, maxChars - 1) + '…' : node.content;
-        ctx.fillText(text, x + 1 / zoom, y + 1 / zoom);
-        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = n.name ? '#333' : '#999';
+        ctx.font = `${fs}px sans-serif`;
+        const maxChars = Math.floor(n.w * 3.78 / (fs * 0.55));
+        const text = n.content.length > maxChars ? n.content.slice(0, maxChars - 1) + '…' : n.content;
+        ctx.fillText(text, n.x * 3.78 + 1 / z, n.y * 3.78 + fs);
         ctx.restore();
       }
-      drawTextContents(ctx, node.children, zoom);
+      drawContents(ctx, n.children, z);
     }
   }
-
-  function drawTree(ctx: CanvasRenderingContext2D, nodes: TreeNode[], zoom: number): void {
-    // In Content mode, only draw selected node highlight — skip overlay boxes
-    if (viewMode.value === 'content') {
-      drawSelectionOnly(ctx, nodes, zoom);
-      return;
-    }
-    // Boxes mode: draw all colored overlays
-    drawAllOverlays(ctx, nodes, zoom);
-  }
-
-  function drawSelectionOnly(ctx: CanvasRenderingContext2D, nodes: TreeNode[], zoom: number): void {
-    const MM = 3.78;
-    for (const node of nodes) {
-      if (node.id !== selectedNodeId.value) { drawSelectionOnly(ctx, node.children, zoom); continue; }
-      if (node.w <= 0 || node.h <= 0) continue;
-      const x = node.x * MM, y = node.y * MM, w = node.w * MM, h = node.h * MM;
-      ctx.fillStyle = 'rgba(83,74,183,0.15)';
-      ctx.fillRect(x, y, w, h);
-      ctx.strokeStyle = '#534AB7';
-      ctx.lineWidth = 2 / zoom;
-      ctx.setLineDash([4 / zoom, 3 / zoom]);
-      ctx.strokeRect(x, y, w, h);
-      ctx.setLineDash([]);
-      drawSelectionOnly(ctx, node.children, zoom);
-    }
-  }
-
-  function drawAllOverlays(ctx: CanvasRenderingContext2D, nodes: TreeNode[], zoom: number): void {
-    const MM = 3.78;
-    for (const node of nodes) {
-      if (node.w <= 0 || node.h <= 0) { drawAllOverlays(ctx, node.children, zoom); continue; }
-
-      const colors = getGroupColor(node);
-      const isSelected = node.id === selectedNodeId.value;
-      const isHovered = node.id === hoveredNodeId.value;
-      const x = node.x * MM, y = node.y * MM, w = node.w * MM, h = node.h * MM;
-      const name = node.name.toLowerCase();
-      const isFace = FACE_NAMES.includes(name);
-
-      ctx.lineWidth = 1.5 / zoom;
-
-      if (isSelected) {
-        ctx.fillStyle = 'rgba(83,74,183,0.15)';
-        ctx.fillRect(x, y, w, h);
-        ctx.strokeStyle = DASHED_PURPLE;
-        ctx.setLineDash([4 / zoom, 3 / zoom]);
-        ctx.strokeRect(x, y, w, h);
-        ctx.setLineDash([]);
-        const fs = Math.max(8, 11 / zoom);
-        ctx.font = `${fs}px sans-serif`;
-        ctx.fillStyle = DASHED_PURPLE;
-        ctx.fillText(node.name || '', x, y - 4 / zoom);
-      } else {
-        ctx.fillStyle = isHovered ? colors.fillHover : colors.fill;
-        ctx.fillRect(x, y, w, h);
-        ctx.strokeStyle = colors.stroke;
-        ctx.strokeRect(x, y, w, h);
-      }
-
-      // FIX 5: Configured indicator dot on face groups
-      if (isFace && configuredFaces.value.has(name)) {
-        ctx.fillStyle = CONFIGURED_DOT;
-        ctx.beginPath();
-        ctx.arc(x + w - 4 / zoom, y + 4 / zoom, 3 / zoom, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // FIX 7: Face group labels always visible
-      if (isFace && !isSelected) {
-        const fs = Math.max(7, 10 / zoom);
-        ctx.font = `600 ${fs}px sans-serif`;
-        ctx.fillStyle = colors.stroke;
-        ctx.globalAlpha = 0.7;
-        ctx.fillText(node.name, x + 3 / zoom, y + 12 / zoom);
-        ctx.globalAlpha = 1;
-      }
-
-      drawAllOverlays(ctx, node.children, zoom);
-    }
-  }
-
-  function drawPlaceholder(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-    ctx.fillStyle = '#999';
-    ctx.font = '14px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('Scan an .ai file to preview', w / 2, h / 2);
-    ctx.textAlign = 'start';
-  }
-
-  /* ── Hit testing ── */
-  function hitTest(sx: number, sy: number): TreeNode | null {
-    if (!scanResult.value) return null;
-    const { x: mx, y: my } = screenToMm(sx, sy);
-    return _findDeepest(scanResult.value.tree, mx, my);
-
-    function _findDeepest(nodes: TreeNode[], mx: number, my: number): TreeNode | null {
-      for (let i = nodes.length - 1; i >= 0; i--) {
-        const n = nodes[i];
-        if (n.w > 0 && n.h > 0 && mx >= n.x && mx <= n.x + n.w && my >= n.y && my <= n.y + n.h) {
-          const child = _findDeepest(n.children, mx, my);
-          return child || n;
-        }
-      }
-      return null;
-    }
-  }
-
-  /* ── Old hit test kept as fallback, unused ── */
-  function onMouseDown(e: MouseEvent): void {
-    const rect = canvasRef.value?.getBoundingClientRect();
-    if (!rect) return;
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
-    const hit = hitTest(sx, sy);
-    panStart.value = { x: e.clientX, y: e.clientY };
-    isPanning.value = false;
-    if (hit && !hit.readOnly) { pendingClick.value = hit; }
-    else { pendingClick.value = null; }
-  }
-
-  function onMouseMove(e: MouseEvent): void {
-    if (pendingClick.value) {
-      const dx = Math.abs(e.clientX - panStart.value.x);
-      const dy = Math.abs(e.clientY - panStart.value.y);
-      if (dx > 4 || dy > 4) {
-        pendingClick.value = null;
-        isPanning.value = true;
-      }
-    }
-    if (isPanning.value) {
-      viewport.value.offsetX += e.clientX - panStart.value.x;
-      viewport.value.offsetY += e.clientY - panStart.value.y;
-      panStart.value = { x: e.clientX, y: e.clientY };
-      showHint.value = false;
-    }
-  }
-
-  function onMouseUp(): TreeNode | null {
-    if (pendingClick.value && !isPanning.value) {
-      const hit = pendingClick.value;
-      pendingClick.value = null;
-      return hit;
-    }
-    pendingClick.value = null;
-    isPanning.value = false;
-    return null;
-  }
-
-  function onWheel(e: WheelEvent): void {
-    e.preventDefault();
-    const rect = canvasRef.value?.getBoundingClientRect();
-    if (!rect) return;
-    zoomAtPoint(e.clientX - rect.left, e.clientY - rect.top, e.deltaY < 0 ? 1.1 : 0.9);
-  }
-
-  function onDblClick(): void { fitToCanvas(); }
 
   function loadArtwork(src: string): void {
-    if (!src || src.length < 100) { console.warn('[canvas] artwork src too short, skipping'); return; }
+    if (!src || src.length < 100) return;
     artworkLoading.value = true;
     const img = new Image();
-    img.onload = () => {
-      console.log('[canvas] artwork loaded', img.naturalWidth, 'x', img.naturalHeight);
-      artworkImage.value = img;
-      artworkLoading.value = false;
-    };
-    img.onerror = (_e) => {
-      console.error('[canvas] artwork failed to load — url starts with:', src.substring(0, 50));
-      artworkLoading.value = false;
-    };
+    img.onload = () => { artworkImage.value = img; artworkLoading.value = false; };
+    img.onerror = () => { artworkLoading.value = false; };
     img.src = src;
   }
 
+  function addFeedbackDot(sx: number, sy: number, label: string): void {
+    feedbackDots.value.push({ x: sx, y: sy, label, t: Date.now() });
+  }
+
   return {
-    viewport, hoveredNodeId, pxPerMm, showHint, viewMode, artworkImage, artworkLoading,
-    mmToScreen, screenToMm,
-    initialZoom, fitToCanvas, centerOnNode, zoomAtPoint, toggleViewMode,
-    draw, hitTest, loadArtwork,
-    onMouseDown, onMouseMove, onMouseUp, onWheel, onDblClick,
+    viewport, pxPerMm, showHint, viewMode, artworkLoading,
+    initialZoom, fitToCanvas, centerOnNode, toggleViewMode,
+    onMouseDown, onMouseMove, onMouseUp, onWheel,
+    draw, hitTest, addFeedbackDot, loadArtwork,
   };
 }
