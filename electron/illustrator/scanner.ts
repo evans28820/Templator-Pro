@@ -115,7 +115,6 @@ function generateScanJsx(aiPath: string, outputPath: string, pngPath: string): s
     'var pngOk = false;',
     'try {',
     '  var pngFile = new File("' + escapeJsx(pngPath) + '");',
-    '  var pngFile.remove();',
     '  var capOpts = new ImageCaptureOptions();',
     '  capOpts.resolution = 72;',
     '  capOpts.antiAliasing = true;',
