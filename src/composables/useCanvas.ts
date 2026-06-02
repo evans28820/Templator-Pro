@@ -20,7 +20,7 @@ const GROUP_COLORS: Record<string, { stroke: string; fill: string; fillHover: st
   LOGO:    { stroke: '#888780', fill: 'rgba(136,135,128,0.06)', fillHover: 'rgba(136,135,128,0.14)', fillSelected: 'rgba(136,135,128,0.14)' },
 };
 const DEFAULT_COLORS = { stroke: '#888780', fill: 'transparent', fillHover: 'rgba(136,135,128,0.10)', fillSelected: 'rgba(136,135,128,0.20)' };
-const CANVAS_BG = '#2d2d2d';
+const CANVAS_BG = '#ffffff';
 const DASHED_PURPLE = '#534AB7';
 const CONFIGURED_DOT = '#ce9178';
 const HINT_TEXT_COLOR = '#666666';
