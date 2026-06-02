@@ -37,6 +37,7 @@ export function useCanvas(
   const hoveredNodeId = ref<string | null>(null);
   const panStart = ref({ x: 0, y: 0 });
   const artworkImage = ref<HTMLImageElement | null>(null);
+  const artworkLoading = ref(false);
   const showHint = ref(true);
   const viewMode = ref<'content' | 'boxes'>('content');
 
@@ -170,6 +171,18 @@ export function useCanvas(
 
     if (artworkImage.value) {
       ctx.drawImage(artworkImage.value, 0, 0, scanResult.value.artboardWidth * 3.78, scanResult.value.artboardHeight * 3.78);
+    } else if (artworkLoading.value) {
+      // Loading state
+      const w = scanResult.value.artboardWidth * 3.78;
+      const h = scanResult.value.artboardHeight * 3.78;
+      ctx.fillStyle = '#fafafa';
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#aaa';
+      const fs = Math.max(9, 14 / viewport.value.zoom);
+      ctx.font = fs + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Loading artwork...', w / 2, h / 2);
+      ctx.textAlign = 'start';
     } else {
       // Clean placeholder
       const w = scanResult.value.artboardWidth * 3.78;
@@ -342,14 +355,23 @@ export function useCanvas(
   function onDblClick(): void { fitToCanvas(); }
 
   function loadArtwork(src: string): void {
+    if (!src || src.length < 100) { console.warn('[canvas] artwork src too short, skipping'); return; }
+    artworkLoading.value = true;
     const img = new Image();
-    img.onload = () => { console.log('[canvas] artwork loaded', img.width, 'x', img.height); artworkImage.value = img; };
-    img.onerror = () => { console.error('[canvas] artwork failed to load'); };
+    img.onload = () => {
+      console.log('[canvas] artwork loaded', img.naturalWidth, 'x', img.naturalHeight);
+      artworkImage.value = img;
+      artworkLoading.value = false;
+    };
+    img.onerror = (_e) => {
+      console.error('[canvas] artwork failed to load — url starts with:', src.substring(0, 50));
+      artworkLoading.value = false;
+    };
     img.src = src;
   }
 
   return {
-    viewport, hoveredNodeId, pxPerMm, showHint, viewMode,
+    viewport, hoveredNodeId, pxPerMm, showHint, viewMode, artworkImage, artworkLoading,
     mmToScreen, screenToMm,
     initialZoom, fitToCanvas, centerOnNode, zoomAtPoint, toggleViewMode,
     draw, hitTest, loadArtwork,
