@@ -98,6 +98,7 @@ export function useCanvas(
   let panStart = { x: 0, y: 0 };
   let pendingHit: TreeNode | null = null;
   let isPan = false;
+  let mouseDown = false;
 
   function onWheel(e: WheelEvent): void {
     const rect = canvasRef.value?.getBoundingClientRect();
@@ -117,6 +118,7 @@ export function useCanvas(
   function onMouseDown(e: MouseEvent): void {
     const rect = canvasRef.value?.getBoundingClientRect();
     if (!rect) return;
+    mouseDown = true;
     panStart = { x: e.clientX, y: e.clientY };
     isPan = false;
     const hit = hitTest(e.clientX - rect.left, e.clientY - rect.top);
@@ -124,6 +126,7 @@ export function useCanvas(
   }
 
   function onMouseMove(e: MouseEvent): void {
+    if (!mouseDown) return;
     const dx = Math.abs(e.clientX - panStart.x), dy = Math.abs(e.clientY - panStart.y);
     if (pendingHit && (dx > 5 || dy > 5)) { pendingHit = null; isPan = true; }
     if (isPan || (!pendingHit && (dx > 2 || dy > 2))) {
@@ -136,6 +139,8 @@ export function useCanvas(
   }
 
   function onMouseUp(): TreeNode | null {
+    if (!mouseDown) return null;
+    mouseDown = false;
     const hit = (!isPan && pendingHit) ? pendingHit : null;
     pendingHit = null; isPan = false;
     return hit;
