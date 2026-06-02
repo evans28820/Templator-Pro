@@ -110,15 +110,18 @@ export function useCanvas(
     const canvas = canvasRef.value;
     const cx = node.x + node.w / 2;
     const cy = node.y + node.h / 2;
-    const targetW = Math.max(node.w, 30);
-    const targetH = Math.max(node.h, 20);
-    const pad = 50;
-    const zw = canvas.width / ((targetW + pad * 2 / 3.78) * 3.78);
-    const zh = canvas.height / ((targetH + pad * 2 / 3.78) * 3.78);
-    const zoom = Math.max(0.3, Math.min(zw, zh));
-    viewport.value.zoom = zoom;
-    viewport.value.offsetX = canvas.width / 2 - cx * 3.78 * zoom;
-    viewport.value.offsetY = canvas.height / 2 - cy * 3.78 * zoom;
+    // Only pan to center — keep current zoom level (or 20% toward fit)
+    const targetW = Math.max(node.w, 40);
+    const targetH = Math.max(node.h, 30);
+    const zw = canvas.width / (targetW * 3.78);
+    const zh = canvas.height / (targetH * 3.78);
+    const fitZoom = Math.max(0.2, Math.min(zw, zh));
+    // Blend: 20% of the way from current zoom toward fit zoom
+    const curZoom = viewport.value.zoom;
+    const newZoom = curZoom + (fitZoom - curZoom) * 0.2;
+    viewport.value.zoom = Math.max(0.2, Math.min(newZoom, curZoom * 2));
+    viewport.value.offsetX = canvas.width / 2 - cx * 3.78 * viewport.value.zoom;
+    viewport.value.offsetY = canvas.height / 2 - cy * 3.78 * viewport.value.zoom;
   }
 
   /* ── Drawing ── */
@@ -332,6 +335,7 @@ export function useCanvas(
     const rect = canvasRef.value?.getBoundingClientRect();
     if (!rect) return null;
     const hit = hitTest(e.clientX - rect.left, e.clientY - rect.top);
+    console.log('[canvas:click] hit:', hit?.name || 'none', 'readOnly:', !!hit?.readOnly);
     if (hit && !hit.readOnly) return hit;
     isPanning.value = true;
     panStart.value = { x: e.clientX, y: e.clientY };
