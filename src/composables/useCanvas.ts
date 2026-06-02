@@ -104,30 +104,7 @@ export function useCanvas(
     showHint.value = false;
   }
 
-  /* ── FIX 2: Zoom to parent face group context ── */
-  function findParentFace(nodes: TreeNode[], targetId: string): TreeNode | null {
-    for (const node of nodes) {
-      if (node.children.some(c => c.id === targetId || findInTree(c, targetId))) {
-        const name = node.name.toLowerCase();
-        if (FACE_NAMES.includes(name) || node.name === 'Remark') return node;
-        if (node.name === 'PrintingLayer') {
-          for (const c of node.children) {
-            const cn = c.name.toLowerCase();
-            if (FACE_NAMES.includes(cn) && (c.id === targetId || findInTree(c, targetId))) return c;
-          }
-        }
-      }
-      const found = findParentFace(node.children, targetId);
-      if (found) return found;
-    }
-    return null;
-  }
-
-  function findInTree(node: TreeNode, targetId: string): boolean {
-    if (node.id === targetId) return true;
-    return node.children.some(c => findInTree(c, targetId));
-  }
-
+  /* ── FIX 2: Zoom to node ── */
   function centerOnNode(node: TreeNode): void {
     if (!canvasRef.value) return;
     const canvas = canvasRef.value;
