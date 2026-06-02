@@ -15,12 +15,12 @@ import PipelineEditor from '../ui/PipelineEditor.vue';
 const templateStore = useTemplateStore();
 const settingsStore = useSettingsStore();
 
-const colWidths = ref([42, 28, 30]);
+const colWidths = ref([55, 22, 23]);
 const isScanning = ref(false);
 
 function onResizeLeft(delta: number): void {
   const total = colWidths.value[0] + colWidths.value[1];
-  colWidths.value[0] = Math.max(20, Math.min(60, colWidths.value[0] + delta / 4));
+  colWidths.value[0] = Math.max(25, Math.min(85, colWidths.value[0] + delta / 4));
   colWidths.value[1] = total - colWidths.value[0];
 }
 

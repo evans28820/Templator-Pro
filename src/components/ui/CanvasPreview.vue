@@ -42,6 +42,8 @@ const {
   initialZoom,
   fitToCanvas,
   centerOnNode,
+  viewMode,
+  toggleViewMode,
   onMouseDown,
   onMouseMove,
   onMouseUp,
@@ -101,6 +103,10 @@ onUnmounted(() => {
       <span class="zoom-badge">{{ zoomDisplay }}</span>
       <button class="tool-btn" title="Zoom in" @click="viewport.zoom = Math.min(10, viewport.zoom * 1.1)">＋</button>
       <button class="tool-btn" title="Zoom out" @click="viewport.zoom = Math.max(0.1, viewport.zoom * 0.9)">−</button>
+      <span class="toolbar-spacer" />
+      <button class="tool-btn view-toggle" :class="{ active: viewMode === 'content' }" @click="toggleViewMode">
+        {{ viewMode === 'content' ? '☰ Content' : '⊡ Boxes' }}
+      </button>
     </div>
     <canvas
       ref="canvasRef"
@@ -122,6 +128,8 @@ onUnmounted(() => {
 .tool-btn { padding:3px 10px; border:1px solid var(--border-primary); border-radius:4px; background:var(--bg-primary); color:var(--text-secondary); cursor:pointer; font-size:12px; }
 .tool-btn:hover { background:var(--bg-hover); color:var(--text-primary); }
 .zoom-badge { font-size:11px; color:var(--text-muted); min-width:42px; text-align:center; }
+.toolbar-spacer { flex:1; }
+.view-toggle.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .preview-canvas { flex:1; width:100%; cursor:grab; display:block; }
 .preview-canvas:active { cursor:grabbing; }
 </style>

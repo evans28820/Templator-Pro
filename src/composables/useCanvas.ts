@@ -38,6 +38,11 @@ export function useCanvas(
   const panStart = ref({ x: 0, y: 0 });
   const artworkImage = ref<HTMLImageElement | null>(null);
   const showHint = ref(true);
+  const viewMode = ref<'content' | 'boxes'>('content');
+
+  function toggleViewMode(): void {
+    viewMode.value = viewMode.value === 'content' ? 'boxes' : 'content';
+  }
 
   const pxPerMm = computed(() => viewport.value.zoom * 3.78);
 
@@ -184,12 +189,14 @@ export function useCanvas(
       ctx.restore();
       // Draw group overlays even without artwork
       drawTree(ctx, scanResult.value.tree, viewport.value.zoom);
+      if (viewMode.value === 'content') { drawTextContents(ctx, scanResult.value.tree, viewport.value.zoom); }
       ctx.restore();
       if (showHint.value) drawHint(ctx, canvas.clientWidth, canvas.clientHeight);
       return;
     }
 
     drawTree(ctx, scanResult.value.tree, viewport.value.zoom);
+    if (viewMode.value === 'content') { drawTextContents(ctx, scanResult.value.tree, viewport.value.zoom); }
     ctx.restore();
     if (showHint.value) drawHint(ctx, canvas.clientWidth, canvas.clientHeight);
   }
@@ -198,6 +205,30 @@ export function useCanvas(
     ctx.fillStyle = HINT_TEXT_COLOR;
     ctx.font = '8px sans-serif';
     ctx.fillText('Ctrl+scroll zoom  •  drag to pan  •  double-click to fit', 8, ch - 8);
+  }
+
+  /** Render text frame contents at their positions (Content mode) */
+  function drawTextContents(ctx: CanvasRenderingContext2D, nodes: TreeNode[], zoom: number): void {
+    const MM = 3.78;
+    for (const node of nodes) {
+      if (node.type === 'textFrame' && node.content && node.w > 0 && node.h > 0) {
+        const x = node.x * MM;
+        const y = node.y * MM;
+        const w = node.w * MM;
+        const h = node.h * MM;
+        const fontSize = Math.min(h * 0.7, Math.max(4, 10 / zoom));
+        ctx.save();
+        ctx.fillStyle = node.name ? '#333' : '#999';
+        ctx.font = `${fontSize}px sans-serif`;
+        ctx.textBaseline = 'top';
+        const maxChars = Math.floor(w / (fontSize * 0.55));
+        const text = node.content.length > maxChars ? node.content.slice(0, maxChars - 1) + '…' : node.content;
+        ctx.fillText(text, x + 1 / zoom, y + 1 / zoom);
+        ctx.textBaseline = 'alphabetic';
+        ctx.restore();
+      }
+      drawTextContents(ctx, node.children, zoom);
+    }
   }
 
   function drawTree(ctx: CanvasRenderingContext2D, nodes: TreeNode[], zoom: number): void {
@@ -318,9 +349,9 @@ export function useCanvas(
   }
 
   return {
-    viewport, hoveredNodeId, pxPerMm, showHint,
+    viewport, hoveredNodeId, pxPerMm, showHint, viewMode,
     mmToScreen, screenToMm,
-    initialZoom, fitToCanvas, centerOnNode, zoomAtPoint,
+    initialZoom, fitToCanvas, centerOnNode, zoomAtPoint, toggleViewMode,
     draw, hitTest, loadArtwork,
     onMouseDown, onMouseMove, onMouseUp, onWheel, onDblClick,
   };
