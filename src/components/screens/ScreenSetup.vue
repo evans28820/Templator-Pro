@@ -15,12 +15,20 @@ import PipelineEditor from '../ui/PipelineEditor.vue';
 const templateStore = useTemplateStore();
 const settingsStore = useSettingsStore();
 
-const colWidths = ref([65, 35]);
+const colWidths = ref([50, 25, 25]);
 const isScanning = ref(false);
 
-function onResize(delta: number): void {
-  colWidths.value[0] = Math.max(30, Math.min(85, colWidths.value[0] + delta / 4));
-  colWidths.value[1] = 100 - colWidths.value[0];
+function onResizeL(d: number): void {
+  colWidths.value[0] = Math.max(30, Math.min(75, colWidths.value[0] + d / 4));
+  const rest = 100 - colWidths.value[0];
+  colWidths.value[1] = Math.min(rest - 10, Math.max(10, colWidths.value[1] + d / 8));
+  colWidths.value[2] = rest - colWidths.value[1];
+}
+
+function onResizeR(d: number): void {
+  const rest = 100 - colWidths.value[0];
+  colWidths.value[1] = Math.max(10, Math.min(rest - 10, colWidths.value[1] + d / 4));
+  colWidths.value[2] = rest - colWidths.value[1];
 }
 
 const showPipeline = ref(false);
@@ -78,23 +86,23 @@ async function onFileDrop(e: DragEvent): Promise<void> {
   if (!file || !file.path || !file.name.endsWith('.ai')) return;
   isScanning.value = true;
   try {
-    const result = await window.templatorAPI.scanAiFile(file.path);
-    templateStore.setScanResult(result);
-    templateStore.initPanelConfigsFromScan(result.tree);
+    const r = await window.templatorAPI.scanAiFile(file.path);
+    templateStore.setScanResult(r);
+    templateStore.initPanelConfigsFromScan(r.tree);
   } catch (err) { templateStore.scanError = err instanceof Error ? err.message : 'Scan failed'; }
   finally { isScanning.value = false; }
 }
 
 async function selectAiFile(): Promise<void> {
   try {
-    const filePath = await window.templatorAPI.openFileDialog([{ name: 'Adobe Illustrator', extensions: ['ai'] }]);
-    if (!filePath) return;
+    const fp = await window.templatorAPI.openFileDialog([{ name: 'Adobe Illustrator', extensions: ['ai'] }]);
+    if (!fp) return;
     isScanning.value = true;
     try {
-      const result = await window.templatorAPI.scanAiFile(filePath);
-      templateStore.setScanResult(result);
-      templateStore.initPanelConfigsFromScan(result.tree);
-      settingsStore.setOutputPath(filePath);
+      const r = await window.templatorAPI.scanAiFile(fp);
+      templateStore.setScanResult(r);
+      templateStore.initPanelConfigsFromScan(r.tree);
+      settingsStore.setOutputPath(fp);
     } catch (err) { templateStore.scanError = err instanceof Error ? err.message : 'Scan failed'; }
     finally { isScanning.value = false; }
   } catch { /* cancelled */ }
@@ -111,8 +119,7 @@ function focusField(fieldName: string): void {
   const nodes = findNodesByName(templateStore.scanResult?.tree ?? [], fieldName);
   if (nodes.length === 0) return;
   const idx = fieldCycleIndex.value[fieldName] ?? 0;
-  const next = (idx + 1) % nodes.length;
-  fieldCycleIndex.value[fieldName] = next;
+  fieldCycleIndex.value[fieldName] = (idx + 1) % nodes.length;
   templateStore.selectNode(nodes[idx].id);
 }
 
@@ -125,12 +132,6 @@ function generateExcel(): void { /* Phase 4 */ }
     <template v-if="!templateStore.scanResult">
       <div class="welcome" @dragover.prevent @drop.prevent="onFileDrop">
         <div class="welcome-box">
-          <div class="welcome-icon">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#569cd6" stroke-width="1.5">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/>
-            </svg>
-          </div>
           <h1 class="welcome-title">Templator Pro</h1>
           <p class="welcome-sub">Select an Adobe Illustrator template to get started</p>
           <button class="scan-btn" :disabled="isScanning" @click="selectAiFile">
@@ -148,18 +149,16 @@ function generateExcel(): void { /* Phase 4 */ }
       <AppTopBar v-bind="topBarInfo" @change-file="selectAiFile" @rescan="selectAiFile" />
 
       <div class="preview-section">
-        <!-- Canvas -->
+        <!-- Col 1: Canvas -->
         <div class="col" :style="{ width: colWidths[0] + '%' }">
           <CanvasPreview @select-node="onSelectNode" />
         </div>
 
-        <ResizeDivider side="right" @resize="onResize" />
+        <ResizeDivider side="right" @resize="onResizeL" />
 
-        <!-- Right panel: Tree + Sections + Config -->
-        <div class="col panel-col" :style="{ width: colWidths[1] + '%' }">
-          <div class="panel-scroll">
-
-            <!-- Layer Tree -->
+        <!-- Col 2: Tree + Sections -->
+        <div class="col mid-col" :style="{ width: colWidths[1] + '%' }">
+          <div class="mid-scroll">
             <LayerTree
               :tree="templateStore.scanResult?.tree ?? []"
               :selected-id="templateStore.selectedNodeId"
@@ -167,99 +166,78 @@ function generateExcel(): void { /* Phase 4 */ }
               @select-node="onSelectNode"
             />
 
-            <!-- Pipeline -->
             <div class="r-section">
               <div class="r-section-hdr" @click="showPipeline = !showPipeline">
-                <span>PIPELINE</span>
-                <span class="r-section-arrow">{{ showPipeline ? '▾' : '▸' }}</span>
+                <span>PIPELINE</span><span class="r-arrow">{{ showPipeline ? '▾' : '▸' }}</span>
               </div>
-              <div v-if="showPipeline" class="r-section-body">
-                <div class="pipeline-global-controls">
-                  <label>Row break
-                    <select :value="templateStore.globalRowBreakMode"
-                      @change="templateStore.setGlobalRowBreakMode(($event.target as HTMLSelectElement).value as 'locked' | 'fluid')">
-                      <option value="locked">Locked</option><option value="fluid">Fluid</option>
-                    </select>
-                  </label>
-                  <label>Max rows
-                    <input type="number" :value="templateStore.globalMaxRows" min="1" max="5"
-                      @change="templateStore.setGlobalMaxRows(Number(($event.target as HTMLInputElement).value))" />
-                  </label>
+              <div v-if="showPipeline" class="r-body">
+                <div class="pg-row">
+                  <label>Row break<select :value="templateStore.globalRowBreakMode" @change="templateStore.setGlobalRowBreakMode(($event.target as HTMLSelectElement).value as any)"><option value="locked">Locked</option><option value="fluid">Fluid</option></select></label>
+                  <label>Max rows<input type="number" :value="templateStore.globalMaxRows" min="1" max="5" @change="templateStore.setGlobalMaxRows(Number(($event.target as HTMLInputElement).value))" /></label>
                 </div>
                 <PipelineEditor :phases="templateStore.globalPipeline" @update="updateGlobalPipeline" />
-                <button class="reset-btn" @click="templateStore.updateGlobalPipeline([...DEFAULT_PIPELINE])">Reset</button>
+                <button class="rst-btn" @click="templateStore.updateGlobalPipeline([...DEFAULT_PIPELINE])">Reset</button>
               </div>
             </div>
 
-            <!-- Settings -->
             <div class="r-section">
               <div class="r-section-hdr" @click="showSettings = !showSettings">
-                <span>SETTINGS</span>
-                <span class="r-section-arrow">{{ showSettings ? '▾' : '▸' }}</span>
+                <span>SETTINGS</span><span class="r-arrow">{{ showSettings ? '▾' : '▸' }}</span>
               </div>
-              <div v-if="showSettings" class="r-section-body">
-                <div class="setting-row">
+              <div v-if="showSettings" class="r-body">
+                <div class="set-row">
                   <label>Icon library (.ai)</label>
-                  <div class="setting-path">
-                    <input type="text" :value="settingsStore.iconLibraryPath" readonly placeholder="Path to month-icon .ai file..." />
-                    <button @click="selectAiFile">Browse</button>
-                  </div>
+                  <div class="set-path"><input type="text" :value="settingsStore.iconLibraryPath" readonly placeholder="Path..." /><button @click="selectAiFile">Browse</button></div>
                 </div>
-                <div class="setting-row">
+                <div class="set-row">
                   <label>Output folder</label>
-                  <div class="setting-path">
-                    <input type="text" :value="settingsStore.outputPath" readonly placeholder="Where to save .ai + .tif files..." />
-                    <button @click="selectAiFile">Browse</button>
-                  </div>
+                  <div class="set-path"><input type="text" :value="settingsStore.outputPath" readonly placeholder="Where to save..." /><button @click="selectAiFile">Browse</button></div>
                 </div>
-                <div class="setting-row">
+                <div class="set-row">
                   <label>Master output path</label>
-                  <div class="setting-path">
-                    <input type="text" :value="settingsStore.masterOutputPath" readonly placeholder="Where to save master multi-artboard .ai..." />
-                    <button @click="selectAiFile">Browse</button>
-                  </div>
+                  <div class="set-path"><input type="text" :value="settingsStore.masterOutputPath" readonly placeholder="Master multi-artboard..." /><button @click="selectAiFile">Browse</button></div>
                 </div>
               </div>
             </div>
 
-            <!-- Detected Fields -->
             <div class="r-section">
               <div class="r-section-hdr" @click="showFields = !showFields">
-                <span>DETECTED TEXT FIELDS</span>
-                <span class="r-section-arrow">{{ showFields ? '▾' : '▸' }}</span>
+                <span>DETECTED FIELDS</span><span class="r-arrow">{{ showFields ? '▾' : '▸' }}</span>
               </div>
-              <div v-if="showFields" class="r-section-body">
-                <table class="fields-table">
-                  <thead><tr><th>In Excel?</th><th>Field name</th><th>Content</th><th>Notes</th></tr></thead>
+              <div v-if="showFields" class="r-body">
+                <table class="ft">
+                  <thead><tr><th>In Excel?</th><th>Field</th><th>Content</th><th>Notes</th></tr></thead>
                   <tbody>
                     <tr v-for="tf in templateStore.scanResult?.textFrames ?? []" :key="tf.name"
-                        :class="{ readonly: tf.readOnly, clickable: !tf.readOnly && tf.name }"
+                        :class="{ ro: tf.readOnly, cl: !tf.readOnly && tf.name }"
                         @click="!tf.readOnly && tf.name && focusField(tf.name)">
                       <td><input v-if="!tf.readOnly" type="checkbox" checked /><span v-else>–</span></td>
                       <td>{{ tf.name || '&lt;unnamed&gt;' }}</td>
                       <td>{{ tf.content || '(empty)' }}</td>
-                      <td class="notes">
-                        <template v-if="tf.readOnly">Read-only</template>
-                        <template v-else-if="!tf.name">Static</template>
-                      </td>
+                      <td class="nt"><template v-if="tf.readOnly">Read-only</template><template v-else-if="!tf.name">Static</template></td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             </div>
 
-            <!-- Config -->
+            <div class="gen-sect">
+              <button class="gen-btn" @click="generateExcel">Generate Excel template →</button>
+            </div>
+          </div>
+        </div>
+
+        <ResizeDivider side="right" @resize="onResizeR" />
+
+        <!-- Col 3: Config Panel -->
+        <div class="col cfg-col" :style="{ width: colWidths[2] + '%' }">
+          <div class="cfg-scroll">
             <template v-if="isFaceNode && templateStore.selectedNode">
               <PanelConfigPanel :face="selectedFace" />
             </template>
             <template v-else>
               <NodeConfigPanel />
             </template>
-
-            <!-- Generate -->
-            <div class="gen-section">
-              <button class="generate-btn" @click="generateExcel">Generate Excel template →</button>
-            </div>
           </div>
         </div>
       </div>
@@ -286,37 +264,35 @@ function generateExcel(): void { /* Phase 4 */ }
 /* Editor */
 .preview-section { display:flex; flex:1; min-height:0; overflow:hidden; }
 .col { overflow:hidden; display:flex; flex-direction:column; }
-.panel-col { overflow:hidden; }
-.panel-scroll { flex:1; overflow-y:auto; display:flex; flex-direction:column; }
+.mid-col { overflow:hidden; }
+.mid-scroll { flex:1; overflow-y:auto; display:flex; flex-direction:column; }
+.cfg-col { overflow:hidden; }
+.cfg-scroll { flex:1; overflow-y:auto; }
 /* Collapsible sections */
 .r-section { border-top:1px solid var(--border-primary); flex-shrink:0; }
 .r-section-hdr { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; font-size:11px; color:var(--text-muted); font-weight:600; cursor:pointer; background:var(--bg-secondary); }
 .r-section-hdr:hover { background:var(--bg-hover); }
-.r-section-arrow { font-size:10px; }
-.r-section-body { padding:8px 12px; }
-/* Pipeline controls */
-.pipeline-global-controls { display:flex; gap:16px; margin-bottom:6px; }
-.pipeline-global-controls label { font-size:11px; color:var(--text-secondary); display:flex; align-items:center; gap:4px; }
-.pipeline-global-controls select, .pipeline-global-controls input { padding:2px 6px; background:var(--bg-input); border:1px solid var(--border-primary); border-radius:3px; color:var(--text-primary); font-size:11px; width:64px; }
-.reset-btn { margin-top:4px; padding:3px 10px; border:1px solid var(--border-primary); border-radius:4px; background:transparent; color:var(--text-secondary); cursor:pointer; font-size:11px; }
-.reset-btn:hover { background:var(--bg-hover); }
-/* Settings */
-.setting-row { margin-bottom:8px; }
-.setting-row label { font-size:11px; color:var(--text-secondary); display:block; margin-bottom:3px; }
-.setting-path { display:flex; gap:4px; }
-.setting-path input { flex:1; padding:4px 6px; background:var(--bg-input); border:1px solid var(--border-primary); border-radius:3px; color:var(--text-primary); font-size:11px; }
-.setting-path button { padding:4px 8px; border:1px solid var(--border-primary); border-radius:3px; background:var(--bg-tertiary); color:var(--text-secondary); cursor:pointer; font-size:11px; }
-.setting-path button:hover { background:var(--bg-hover); }
-/* Fields table */
-.fields-table { width:100%; border-collapse:collapse; font-size:11px; }
-.fields-table th { text-align:left; padding:3px 6px; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border-primary); }
-.fields-table td { padding:3px 6px; border-bottom:1px solid var(--bg-secondary); color:var(--text-primary); }
-.fields-table tr.readonly td { color:var(--text-muted); }
-.fields-table tr.clickable { cursor:pointer; }
-.fields-table tr.clickable:hover td { background:var(--bg-hover); }
-.fields-table .notes { color:var(--text-muted); font-size:10px; }
-/* Generate */
-.gen-section { padding:10px 12px; border-top:1px solid var(--border-primary); flex-shrink:0; }
-.generate-btn { display:block; width:100%; padding:8px; border:2px solid var(--accent); border-radius:6px; background:var(--accent-bg); color:var(--accent); cursor:pointer; font-size:13px; font-weight:600; }
-.generate-btn:hover { background:var(--accent); color:#fff; }
+.r-arrow { font-size:10px; }
+.r-body { padding:8px 12px; }
+.pg-row { display:flex; gap:16px; margin-bottom:6px; }
+.pg-row label { font-size:11px; color:var(--text-secondary); display:flex; align-items:center; gap:4px; }
+.pg-row select, .pg-row input { padding:2px 6px; background:var(--bg-input); border:1px solid var(--border-primary); border-radius:3px; color:var(--text-primary); font-size:11px; width:64px; }
+.rst-btn { margin-top:4px; padding:3px 10px; border:1px solid var(--border-primary); border-radius:4px; background:transparent; color:var(--text-secondary); cursor:pointer; font-size:11px; }
+.rst-btn:hover { background:var(--bg-hover); }
+.set-row { margin-bottom:8px; }
+.set-row label { font-size:11px; color:var(--text-secondary); display:block; margin-bottom:3px; }
+.set-path { display:flex; gap:4px; }
+.set-path input { flex:1; padding:4px 6px; background:var(--bg-input); border:1px solid var(--border-primary); border-radius:3px; color:var(--text-primary); font-size:11px; }
+.set-path button { padding:4px 8px; border:1px solid var(--border-primary); border-radius:3px; background:var(--bg-tertiary); color:var(--text-secondary); cursor:pointer; font-size:11px; }
+.set-path button:hover { background:var(--bg-hover); }
+.ft { width:100%; border-collapse:collapse; font-size:11px; }
+.ft th { text-align:left; padding:3px 6px; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border-primary); }
+.ft td { padding:3px 6px; border-bottom:1px solid var(--bg-secondary); color:var(--text-primary); }
+.ft tr.ro td { color:var(--text-muted); }
+.ft tr.cl { cursor:pointer; }
+.ft tr.cl:hover td { background:var(--bg-hover); }
+.ft .nt { color:var(--text-muted); font-size:10px; }
+.gen-sect { padding:10px 12px; border-top:1px solid var(--border-primary); flex-shrink:0; }
+.gen-btn { display:block; width:100%; padding:8px; border:2px solid var(--accent); border-radius:6px; background:var(--accent-bg); color:var(--accent); cursor:pointer; font-size:13px; font-weight:600; }
+.gen-btn:hover { background:var(--accent); color:#fff; }
 </style>

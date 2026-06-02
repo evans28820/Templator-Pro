@@ -314,6 +314,18 @@ function convertScanOutput(raw: ScanJsxOutput, aiPath: string, previewBase64: st
   };
 }
 
+/** Auto-expand tree: face panels and structure groups, but NOT individual remarks */
+function shouldAutoExpand(name: string): boolean {
+  if (!name) return false;
+  const n = name.toLowerCase();
+  // Expand structural groups
+  if (n === 'printinglayer' || n === 'remark') return true;
+  // Expand face panels
+  if (n === 'left' || n === 'right' || n === 'top' || n === 'bottom') return true;
+  // Collapse individual remark groups (LeftRemark1, etc.) and everything else
+  return false;
+}
+
 function convertNode(n: ScanJsxNode): TreeNode {
   return {
     id: n.id,
@@ -324,7 +336,7 @@ function convertNode(n: ScanJsxNode): TreeNode {
     includeInExcel: n.type === 'textFrame' && !!n.name && n.name !== 'Type',
     canShrink: n.type === 'textFrame',
     content: n.content || undefined,
-    expanded: n.name === 'Remark' || n.name === 'PrintingLayer',
+    expanded: shouldAutoExpand(n.name),
     readOnly: !n.name || n.name === 'Type',
   };
 }
