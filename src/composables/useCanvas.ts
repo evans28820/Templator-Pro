@@ -51,7 +51,10 @@ export function useCanvas(
     return { x: mmX * pxPerMm.value + viewport.value.offsetX, y: mmY * pxPerMm.value + viewport.value.offsetY };
   }
   function screenToMm(sx: number, sy: number): { x: number; y: number } {
-    return { x: (sx - viewport.value.offsetX) / pxPerMm.value, y: (sy - viewport.value.offsetY) / pxPerMm.value };
+    // Canvas: translate(offset) then scale(zoom)
+    // cssX = zoom * (mm*3.78 + offset)  →  mm = (cssX/zoom - offset)/3.78
+    const z = viewport.value.zoom;
+    return { x: ((sx / z) - viewport.value.offsetX) / 3.78, y: ((sy / z) - viewport.value.offsetY) / 3.78 };
   }
 
   function getGroupColor(node: TreeNode) {
@@ -110,16 +113,7 @@ export function useCanvas(
     const canvas = canvasRef.value;
     const cx = node.x + node.w / 2;
     const cy = node.y + node.h / 2;
-    // Only pan to center — keep current zoom level (or 20% toward fit)
-    const targetW = Math.max(node.w, 40);
-    const targetH = Math.max(node.h, 30);
-    const zw = canvas.width / (targetW * 3.78);
-    const zh = canvas.height / (targetH * 3.78);
-    const fitZoom = Math.max(0.2, Math.min(zw, zh));
-    // Blend: 20% of the way from current zoom toward fit zoom
-    const curZoom = viewport.value.zoom;
-    const newZoom = curZoom + (fitZoom - curZoom) * 0.2;
-    viewport.value.zoom = Math.max(0.2, Math.min(newZoom, curZoom * 2));
+    // Pan only — no zoom change
     viewport.value.offsetX = canvas.width / 2 - cx * 3.78 * viewport.value.zoom;
     viewport.value.offsetY = canvas.height / 2 - cy * 3.78 * viewport.value.zoom;
   }
