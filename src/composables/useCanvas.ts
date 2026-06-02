@@ -312,17 +312,25 @@ export function useCanvas(
   }
 
   function hitTestTree(nodes: TreeNode[], mmX: number, mmY: number): TreeNode | null {
-    for (let i = nodes.length - 1; i >= 0; i--) {
-      const found = hitTestTree(nodes[i].children, mmX, mmY);
-      if (found) return found;
-    }
-    for (let i = nodes.length - 1; i >= 0; i--) {
-      const node = nodes[i];
-      if (node.w > 0 && node.h > 0 && mmX >= node.x && mmX <= node.x + node.w && mmY >= node.y && mmY <= node.y + node.h) {
-        return node;
+    let best: TreeNode | null = null;
+    let bestArea = Infinity;
+    _hitTree(nodes, mmX, mmY);
+    return best;
+
+    function _hitTree(items: TreeNode[], mx: number, my: number): void {
+      for (let i = items.length - 1; i >= 0; i--) {
+        const n = items[i];
+        // Check self
+        if (n.w > 0 && n.h > 0 &&
+            mx >= n.x && mx <= n.x + n.w &&
+            my >= n.y && my <= n.y + n.h) {
+          const area = n.w * n.h;
+          if (area < bestArea) { best = n; bestArea = area; }
+        }
+        // Check children (deeper = smaller area usually wins)
+        if (n.children.length > 0) _hitTree(n.children, mx, my);
       }
     }
-    return null;
   }
 
   function onMouseDown(e: MouseEvent): TreeNode | null {
@@ -331,8 +339,11 @@ export function useCanvas(
     const hit = hitTest(e.clientX - rect.left, e.clientY - rect.top);
     console.log('[canvas:click] hit:', hit?.name || 'none', 'readOnly:', !!hit?.readOnly);
     if (hit && !hit.readOnly) return hit;
-    isPanning.value = true;
-    panStart.value = { x: e.clientX, y: e.clientY };
+    // If hit is readOnly or null, try fallback: pan (don't select)
+    if (!hit) {
+      isPanning.value = true;
+      panStart.value = { x: e.clientX, y: e.clientY };
+    }
     return null;
   }
 
