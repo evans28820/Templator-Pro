@@ -51,10 +51,7 @@ export function useCanvas(
     return { x: mmX * pxPerMm.value + viewport.value.offsetX, y: mmY * pxPerMm.value + viewport.value.offsetY };
   }
   function screenToMm(sx: number, sy: number): { x: number; y: number } {
-    // Canvas: translate(offset) then scale(zoom)
-    // cssX = zoom * (mm*3.78 + offset)  →  mm = (cssX/zoom - offset)/3.78
-    const z = viewport.value.zoom;
-    return { x: ((sx / z) - viewport.value.offsetX) / 3.78, y: ((sy / z) - viewport.value.offsetY) / 3.78 };
+    return { x: (sx - viewport.value.offsetX) / pxPerMm.value, y: (sy - viewport.value.offsetY) / pxPerMm.value };
   }
 
   function getGroupColor(node: TreeNode) {
@@ -138,8 +135,8 @@ export function useCanvas(
     if (!scanResult.value) { drawPlaceholder(ctx, canvas.clientWidth, canvas.clientHeight); return; }
 
     ctx.save();
-    ctx.translate(viewport.value.offsetX, viewport.value.offsetY);
     ctx.scale(viewport.value.zoom, viewport.value.zoom);
+    ctx.translate(viewport.value.offsetX, viewport.value.offsetY);
 
     if (artworkImage.value) {
       ctx.drawImage(artworkImage.value, 0, 0, scanResult.value.artboardWidth * 3.78, scanResult.value.artboardHeight * 3.78);
