@@ -11,6 +11,7 @@ import LayerTree from '../ui/LayerTree.vue';
 import PanelConfigPanel from '../ui/PanelConfigPanel.vue';
 import NodeConfigPanel from '../ui/NodeConfigPanel.vue';
 import PipelineEditor from '../ui/PipelineEditor.vue';
+import { getAncestors } from '../../utils/treeUtils';
 
 const templateStore = useTemplateStore();
 const settingsStore = useSettingsStore();
@@ -62,6 +63,10 @@ function onSelectNode(nodeId: string | null): void {
       const name = node.name.toLowerCase();
       if (['bottom', 'top', 'left', 'right'].includes(name)) selectedFace.value = name as Face;
     }
+    // Auto-expand ancestors so the selected node is visible in the tree
+    const tree = templateStore.scanResult?.tree ?? [];
+    const ancestors = getAncestors(tree, nodeId);
+    for (const a of ancestors) { a.expanded = true; }
   }
 }
 

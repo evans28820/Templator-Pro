@@ -115,7 +115,7 @@ export function useCanvas(
     const pad = 50;
     const zw = canvas.width / ((targetW + pad * 2 / 3.78) * 3.78);
     const zh = canvas.height / ((targetH + pad * 2 / 3.78) * 3.78);
-    const zoom = Math.max(0.5, Math.min(zw, zh, 5) * 1.2);
+    const zoom = Math.max(0.3, Math.min(zw, zh));
     viewport.value.zoom = zoom;
     viewport.value.offsetX = canvas.width / 2 - cx * 3.78 * zoom;
     viewport.value.offsetY = canvas.height / 2 - cy * 3.78 * zoom;
@@ -242,10 +242,6 @@ export function useCanvas(
       ctx.setLineDash([4 / zoom, 3 / zoom]);
       ctx.strokeRect(x, y, w, h);
       ctx.setLineDash([]);
-      const fs = Math.max(9, 12 / zoom);
-      ctx.font = `${fs}px sans-serif`;
-      ctx.fillStyle = '#534AB7';
-      ctx.fillText(node.name || '', x, y - 4 / zoom);
       drawSelectionOnly(ctx, node.children, zoom);
     }
   }
