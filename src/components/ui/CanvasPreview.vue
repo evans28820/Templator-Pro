@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useCanvas } from '../../composables/useCanvas';
 import { useTemplateStore } from '../../stores/template.store';
+import { findNodeById } from '../../utils/treeUtils';
 import { PANEL_DEFAULTS } from '../../types';
 
 const emit = defineEmits<{ 'select-node': [nodeId: string | null] }>();
@@ -77,6 +78,16 @@ watch(
     setTimeout(() => initialZoom(), 200);
   },
   { immediate: true },
+);
+
+// Zoom to selected node from tree clicks
+watch(
+  () => templateStore.selectedNodeId,
+  (id) => {
+    if (!id) return;
+    const node = findNodeById(templateStore.scanResult?.tree ?? [], id);
+    if (node) setTimeout(() => centerOnNode(node), 50);
+  },
 );
 
 let animFrameId = 0;

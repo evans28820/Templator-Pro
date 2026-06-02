@@ -338,9 +338,7 @@ function shouldAutoExpand(name: string): boolean {
   const n = name.toLowerCase();
   // Expand structural groups
   if (n === 'printinglayer' || n === 'remark') return true;
-  // Expand face panels
-  if (n === 'left' || n === 'right' || n === 'top' || n === 'bottom') return true;
-  // Collapse individual remark groups (LeftRemark1, etc.) and everything else
+  // Collapse face panels — user clicks to expand
   return false;
 }
 
