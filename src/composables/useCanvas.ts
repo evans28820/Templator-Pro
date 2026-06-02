@@ -86,7 +86,7 @@ export function useCanvas(
   function findDeepest(nodes: TreeNode[], mx: number, my: number): TreeNode | null {
     for (let i = nodes.length - 1; i >= 0; i--) {
       const n = nodes[i];
-      if (n.w > 1 && n.h > 1 && mx >= n.x && mx <= n.x + n.w && my >= n.y && my <= n.y + n.h) {
+      if (n.w > 0.1 && n.h > 0.1 && mx >= n.x && mx <= n.x + n.w && my >= n.y && my <= n.y + n.h) {
         const child = findDeepest(n.children, mx, my);
         return child || n;
       }
@@ -101,17 +101,18 @@ export function useCanvas(
   let mouseDown = false;
 
   function onWheel(e: WheelEvent): void {
+    e.preventDefault();
     const rect = canvasRef.value?.getBoundingClientRect();
     if (!rect) return;
     const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
     const z = viewport.value.zoom;
-    const drawX = sx / z - viewport.value.offsetX;
-    const drawY = sy / z - viewport.value.offsetY;
-    const f = e.deltaY < 0 ? 1.1 : 0.9;
-    const nz = Math.max(0.1, Math.min(10, z * f));
+    // Pin cursor position: world = screen / zoom - offset
+    const wx = sx / z - viewport.value.offsetX;
+    const wy = sy / z - viewport.value.offsetY;
+    const nz = Math.max(0.05, Math.min(10, z * (e.deltaY < 0 ? 1.08 : 0.93)));
     viewport.value.zoom = nz;
-    viewport.value.offsetX = sx / nz - drawX;
-    viewport.value.offsetY = sy / nz - drawY;
+    viewport.value.offsetX = sx / nz - wx;
+    viewport.value.offsetY = sy / nz - wy;
     showHint.value = false;
   }
 

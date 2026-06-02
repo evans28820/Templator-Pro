@@ -47,6 +47,7 @@ function handleDown(e: MouseEvent): void {
 function handleMove(e: MouseEvent): void { onMouseMove(e); }
 function handleUp(_e: MouseEvent): void {
   const hit = onMouseUp();
+  console.log('[canvas:select]', hit?.name || 'none', hit?.type || '');
   if (hit) {
     templateStore.selectNode(hit.id);
     emit('select-node', hit.id);
