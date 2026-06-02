@@ -211,101 +211,107 @@ function focusField(fieldName: string): void {
 
         <ResizeDivider side="right" @resize="onResizeRight" />
 
-        <div class="col" :style="{ width: colWidths[2] + '%' }">
-          <template v-if="isFaceNode && templateStore.selectedNode">
-            <PanelConfigPanel :face="selectedFace" />
-          </template>
-          <template v-else>
-            <NodeConfigPanel />
-          </template>
-        </div>
-      </div>
+        <!-- Right panel: Config + all sections -->
+        <div class="col right-panel" :style="{ width: colWidths[2] + '%' }">
+          <div class="right-scroll">
+            <!-- Config -->
+            <template v-if="isFaceNode && templateStore.selectedNode">
+              <PanelConfigPanel :face="selectedFace" />
+            </template>
+            <template v-else>
+              <NodeConfigPanel />
+            </template>
 
-      <!-- Pipeline -->
-      <div class="section">
-        <div class="section-header" @click="showPipelineSection = !showPipelineSection">
-          <span class="section-num">5</span><span>PIPELINE</span>
-          <span class="section-toggle">{{ showPipelineSection ? '▼' : '▶' }}</span>
-        </div>
-        <div v-if="showPipelineSection" class="section-body">
-          <p class="section-desc">Global pipeline — applies to all panels unless overridden</p>
-          <div class="pipeline-global-controls">
-            <label>Global row break:
-              <select :value="templateStore.globalRowBreakMode"
-                @change="templateStore.setGlobalRowBreakMode(($event.target as HTMLSelectElement).value as 'locked' | 'fluid')">
-                <option value="locked">Locked</option><option value="fluid">Fluid</option>
-              </select>
-            </label>
-            <label>Max rows:
-              <input type="number" :value="templateStore.globalMaxRows" min="1" max="5"
-                @change="templateStore.setGlobalMaxRows(Number(($event.target as HTMLInputElement).value))" />
-            </label>
-          </div>
-          <PipelineEditor :phases="templateStore.globalPipeline" @update="updateGlobalPipeline" />
-          <button class="reset-btn" @click="templateStore.updateGlobalPipeline([...DEFAULT_PIPELINE])">Reset</button>
-        </div>
-      </div>
+            <!-- Pipeline -->
+            <div class="section">
+              <div class="section-header" @click="showPipelineSection = !showPipelineSection">
+                <span class="section-num">5</span><span>PIPELINE</span>
+                <span class="section-toggle">{{ showPipelineSection ? '▼' : '▶' }}</span>
+              </div>
+              <div v-if="showPipelineSection" class="section-body">
+                <p class="section-desc">Global pipeline — applies to all panels unless overridden</p>
+                <div class="pipeline-global-controls">
+                  <label>Row break
+                    <select :value="templateStore.globalRowBreakMode"
+                      @change="templateStore.setGlobalRowBreakMode(($event.target as HTMLSelectElement).value as 'locked' | 'fluid')">
+                      <option value="locked">Locked</option><option value="fluid">Fluid</option>
+                    </select>
+                  </label>
+                  <label>Max rows
+                    <input type="number" :value="templateStore.globalMaxRows" min="1" max="5"
+                      @change="templateStore.setGlobalMaxRows(Number(($event.target as HTMLInputElement).value))" />
+                  </label>
+                </div>
+                <PipelineEditor :phases="templateStore.globalPipeline" @update="updateGlobalPipeline" />
+                <button class="reset-btn" @click="templateStore.updateGlobalPipeline([...DEFAULT_PIPELINE])">Reset</button>
+              </div>
+            </div>
 
-      <!-- Settings -->
-      <div class="section">
-        <div class="section-header" @click="showSettingsSection = !showSettingsSection">
-          <span class="section-num">4</span><span>SETTINGS</span>
-          <span class="section-toggle">{{ showSettingsSection ? '▼' : '▶' }}</span>
-        </div>
-        <div v-if="showSettingsSection" class="section-body">
-          <div class="setting-row">
-            <label>Icon library (.ai)</label>
-            <div class="setting-path">
-              <input type="text" :value="settingsStore.iconLibraryPath" readonly placeholder="Path to month-icon .ai file..." />
-              <button @click="selectAiFile">Browse</button>
+            <!-- Settings -->
+            <div class="section">
+              <div class="section-header" @click="showSettingsSection = !showSettingsSection">
+                <span class="section-num">4</span><span>SETTINGS</span>
+                <span class="section-toggle">{{ showSettingsSection ? '▼' : '▶' }}</span>
+              </div>
+              <div v-if="showSettingsSection" class="section-body">
+                <div class="setting-row">
+                  <label>Icon library (.ai)</label>
+                  <div class="setting-path">
+                    <input type="text" :value="settingsStore.iconLibraryPath" readonly placeholder="Path to month-icon .ai file..." />
+                    <button @click="selectAiFile">Browse</button>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <label>Output folder</label>
+                  <div class="setting-path">
+                    <input type="text" :value="settingsStore.outputPath" readonly placeholder="Where to save .ai + .tif files..." />
+                    <button @click="selectAiFile">Browse</button>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <label>Master output path</label>
+                  <div class="setting-path">
+                    <input type="text" :value="settingsStore.masterOutputPath" readonly placeholder="Where to save master multi-artboard .ai..." />
+                    <button @click="selectAiFile">Browse</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Detected fields -->
+            <div class="section">
+              <div class="section-header">
+                <span class="section-num">3</span><span>DETECTED TEXT FIELDS</span>
+              </div>
+              <div class="section-body">
+                <p class="section-desc">Unnamed frames are skipped. Click a field to locate it on canvas.</p>
+                <table class="fields-table">
+                  <thead>
+                    <tr><th>In Excel?</th><th>Field name</th><th>Content</th><th>Notes</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="tf in templateStore.scanResult?.textFrames ?? []" :key="tf.name"
+                        :class="{ readonly: tf.readOnly, clickable: !tf.readOnly && tf.name }"
+                        @click="!tf.readOnly && tf.name && focusField(tf.name)">
+                      <td><input v-if="!tf.readOnly" type="checkbox" checked /><span v-else>–</span></td>
+                      <td>{{ tf.name || '&lt;unnamed&gt;' }}</td>
+                      <td>{{ tf.content || '(empty)' }}</td>
+                      <td class="notes">
+                        <template v-if="tf.readOnly">Read-only</template>
+                        <template v-else-if="!tf.name">Static design element</template>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Generate Excel -->
+            <div class="section">
+              <button class="generate-btn" @click="generateExcel">Generate Excel template →</button>
             </div>
           </div>
-          <div class="setting-row">
-            <label>Output folder</label>
-            <div class="setting-path">
-              <input type="text" :value="settingsStore.outputPath" readonly placeholder="Where to save individual .ai + .tif files..." />
-              <button @click="selectAiFile">Browse</button>
-            </div>
-          </div>
-          <div class="setting-row">
-            <label>Master output path</label>
-            <div class="setting-path">
-              <input type="text" :value="settingsStore.masterOutputPath" readonly placeholder="Where to save the master multi-artboard .ai file..." />
-              <button @click="selectAiFile">Browse</button>
-            </div>
-          </div>
         </div>
-      </div>
-
-      <!-- Text fields -->
-      <div class="section">
-        <div class="section-header">
-          <span class="section-num">3</span><span>DETECTED TEXT FIELDS</span>
-        </div>
-        <div class="section-body">
-          <p class="section-desc">Unnamed frames are skipped (static design elements). Grey = read-only.</p>
-          <table class="fields-table">
-            <thead>
-              <tr><th>In Excel?</th><th>Field name</th><th>Current content</th><th>Notes</th></tr>
-            </thead>
-            <tbody>
-              <!-- FIX 6: clickable field rows -->
-              <tr v-for="tf in templateStore.scanResult?.textFrames ?? []" :key="tf.name" :class="{ readonly: tf.readOnly, clickable: !tf.readOnly && tf.name }" @click="!tf.readOnly && tf.name && focusField(tf.name)">
-                <td><input v-if="!tf.readOnly" type="checkbox" checked /><span v-else>–</span></td>
-                <td>{{ tf.name || '&lt;unnamed&gt;' }}</td>
-                <td>{{ tf.content || '(empty)' }}</td>
-                <td class="notes">
-                  <template v-if="tf.readOnly">Read-only — box type identifier</template>
-                  <template v-else-if="!tf.name">Static design element</template>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="section">
-        <button class="generate-btn" @click="generateExcel">Generate Excel template →</button>
       </div>
     </template>
   </div>
@@ -352,7 +358,10 @@ function focusField(fieldName: string): void {
 /* ═══ Editor ═══ */
 .preview-section { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 .col { overflow: hidden; display: flex; flex-direction: column; }
+.right-panel { overflow: hidden; }
+.right-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
 .section { border-top: 1px solid var(--border-primary); flex-shrink: 0; }
+.section:first-child { border-top: none; }
 .section-header {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 12px; background: var(--bg-secondary);
@@ -362,7 +371,7 @@ function focusField(fieldName: string): void {
 .section-header:hover { background: var(--bg-hover); }
 .section-num { color: var(--text-muted); font-size: 11px; }
 .section-toggle { margin-left: auto; color: var(--text-muted); font-size: 10px; }
-.section-body { padding: 10px 12px; max-height: 250px; overflow-y: auto; }
+.section-body { padding: 10px 12px; overflow: visible; }
 .section-desc { font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; }
 .pipeline-global-controls { display: flex; gap: 24px; margin-bottom: 8px; }
 .pipeline-global-controls label { font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; }
