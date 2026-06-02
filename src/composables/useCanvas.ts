@@ -40,6 +40,7 @@ export function useCanvas(
   const artworkLoading = ref(false);
   const showHint = ref(true);
   const viewMode = ref<'content' | 'boxes'>('content');
+  const pendingClick = ref<TreeNode | null>(null);
 
   function toggleViewMode(): void {
     viewMode.value = viewMode.value === 'content' ? 'boxes' : 'content';
@@ -306,47 +307,60 @@ export function useCanvas(
   function hitTest(sx: number, sy: number): TreeNode | null {
     if (!scanResult.value) return null;
     const { x: mx, y: my } = screenToMm(sx, sy);
-    const candidates: TreeNode[] = [];
-    _collect(scanResult.value.tree, mx, my, candidates);
-    if (candidates.length === 0) return null;
-    // Prefer groups over textFrames, then smaller area
-    candidates.sort((a, b) => {
-      const aIsGroup = a.type === 'group' ? 0 : 1;
-      const bIsGroup = b.type === 'group' ? 0 : 1;
-      if (aIsGroup !== bIsGroup) return aIsGroup - bIsGroup;
-      return (a.w * a.h) - (b.w * b.h);
-    });
-    return candidates[0];
+    return _findDeepest(scanResult.value.tree, mx, my);
 
-    function _collect(nodes: TreeNode[], mx: number, my: number, out: TreeNode[]): void {
-      for (const n of nodes) {
+    function _findDeepest(nodes: TreeNode[], mx: number, my: number): TreeNode | null {
+      for (let i = nodes.length - 1; i >= 0; i--) {
+        const n = nodes[i];
         if (n.w > 0 && n.h > 0 && mx >= n.x && mx <= n.x + n.w && my >= n.y && my <= n.y + n.h) {
-          out.push(n);
+          const child = _findDeepest(n.children, mx, my);
+          return child || n;
         }
-        if (n.children.length > 0) _collect(n.children, mx, my, out);
       }
+      return null;
     }
   }
 
   /* ── Old hit test kept as fallback, unused ── */
-  function onMouseDown(e: MouseEvent): TreeNode | null {
+  function onMouseDown(e: MouseEvent): void {
     const rect = canvasRef.value?.getBoundingClientRect();
-    if (!rect) return null;
-    const hit = hitTest(e.clientX - rect.left, e.clientY - rect.top);
-    if (hit && !hit.readOnly) return hit;
-    isPanning.value = true;
+    if (!rect) return;
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const hit = hitTest(sx, sy);
     panStart.value = { x: e.clientX, y: e.clientY };
-    return null;
+    isPanning.value = false;
+    if (hit && !hit.readOnly) { pendingClick.value = hit; }
+    else { pendingClick.value = null; }
   }
 
   function onMouseMove(e: MouseEvent): void {
-    if (isPanning.value) { viewport.value.offsetX += e.clientX - panStart.value.x; viewport.value.offsetY += e.clientY - panStart.value.y; panStart.value = { x: e.clientX, y: e.clientY }; showHint.value = false; return; }
-    const rect = canvasRef.value?.getBoundingClientRect();
-    if (!rect) return;
-    hoveredNodeId.value = hitTest(e.clientX - rect.left, e.clientY - rect.top)?.id ?? null;
+    if (pendingClick.value) {
+      const dx = Math.abs(e.clientX - panStart.value.x);
+      const dy = Math.abs(e.clientY - panStart.value.y);
+      if (dx > 4 || dy > 4) {
+        pendingClick.value = null;
+        isPanning.value = true;
+      }
+    }
+    if (isPanning.value) {
+      viewport.value.offsetX += e.clientX - panStart.value.x;
+      viewport.value.offsetY += e.clientY - panStart.value.y;
+      panStart.value = { x: e.clientX, y: e.clientY };
+      showHint.value = false;
+    }
   }
 
-  function onMouseUp(): void { isPanning.value = false; }
+  function onMouseUp(): TreeNode | null {
+    if (pendingClick.value && !isPanning.value) {
+      const hit = pendingClick.value;
+      pendingClick.value = null;
+      return hit;
+    }
+    pendingClick.value = null;
+    isPanning.value = false;
+    return null;
+  }
 
   function onWheel(e: WheelEvent): void {
     e.preventDefault();

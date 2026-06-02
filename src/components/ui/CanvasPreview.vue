@@ -54,14 +54,15 @@ const {
 } = canvasApi;
 
 function handleMouseDown(e: MouseEvent): void {
-  const hit = onMouseDown(e);
+  onMouseDown(e);
+}
+
+function handleMouseUp(_e: MouseEvent): void {
+  const hit = onMouseUp();
   if (hit) {
     templateStore.selectNode(hit.id);
     emit('select-node', hit.id);
     centerOnNode(hit);
-  } else {
-    templateStore.selectNode(null);
-    emit('select-node', null);
   }
 }
 
@@ -124,8 +125,8 @@ onUnmounted(() => {
       class="preview-canvas"
       @mousedown="handleMouseDown"
       @mousemove="(e) => onMouseMove(e)"
-      @mouseup="onMouseUp"
-      @mouseleave="onMouseUp"
+      @mouseup="handleMouseUp"
+      @mouseleave="handleMouseUp"
       @wheel="(e) => onWheel(e)"
       @dblclick="onDblClick"
       @contextmenu.prevent
