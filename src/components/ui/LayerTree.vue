@@ -1,18 +1,32 @@
 <script setup lang="ts">
+import { ref, watch, nextTick } from 'vue';
 import type { TreeNode } from '../../types';
 import TreeNodeItem from './TreeNodeItem.vue';
 
 defineEmits<{ 'select-node': [nodeId: string | null] }>();
 
-defineProps<{
+const props = defineProps<{
   tree: TreeNode[];
   selectedId: string | null;
   configuredFaces: Set<string>;
 }>();
+
+const treeContainer = ref<HTMLElement | null>(null);
+
+watch(
+  () => props.selectedId,
+  () => {
+    if (!props.selectedId) return;
+    nextTick(() => {
+      const el = treeContainer.value?.querySelector('.tree-node.selected');
+      if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  },
+);
 </script>
 
 <template>
-  <div class="layer-tree" ref="treeContainer">
+  <div ref="treeContainer" class="layer-tree">
     <div class="tree-header">LAYER TREE</div>
     <div class="tree-body">
       <template v-for="node in tree" :key="node.id">

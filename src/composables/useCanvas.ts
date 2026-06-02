@@ -130,17 +130,15 @@ export function useCanvas(
 
   function centerOnNode(node: TreeNode): void {
     if (!canvasRef.value) return;
-    const tree = scanResult.value?.tree ?? [];
-    const parentFace = findParentFace(tree, node.id);
-    const target = parentFace && parentFace.w > 0 ? parentFace : node;
-
     const canvas = canvasRef.value;
-    const cx = target.x + target.w / 2;
-    const cy = target.y + target.h / 2;
-    const pad = 40;
-    const zw = canvas.width / ((target.w + pad * 2 / 3.78) * 3.78);
-    const zh = canvas.height / ((target.h + pad * 2 / 3.78) * 3.78);
-    const zoom = Math.max(0.5, Math.min(zw, zh, 4) * 1.3);
+    const cx = node.x + node.w / 2;
+    const cy = node.y + node.h / 2;
+    const targetW = Math.max(node.w, 30);
+    const targetH = Math.max(node.h, 20);
+    const pad = 50;
+    const zw = canvas.width / ((targetW + pad * 2 / 3.78) * 3.78);
+    const zh = canvas.height / ((targetH + pad * 2 / 3.78) * 3.78);
+    const zoom = Math.max(0.5, Math.min(zw, zh, 5) * 1.2);
     viewport.value.zoom = zoom;
     viewport.value.offsetX = canvas.width / 2 - cx * 3.78 * zoom;
     viewport.value.offsetY = canvas.height / 2 - cy * 3.78 * zoom;
