@@ -15,23 +15,17 @@ import PipelineEditor from '../ui/PipelineEditor.vue';
 const templateStore = useTemplateStore();
 const settingsStore = useSettingsStore();
 
-const colWidths = ref([55, 22, 23]);
+const colWidths = ref([65, 35]);
 const isScanning = ref(false);
 
-function onResizeLeft(delta: number): void {
-  const total = colWidths.value[0] + colWidths.value[1];
-  colWidths.value[0] = Math.max(25, Math.min(85, colWidths.value[0] + delta / 4));
-  colWidths.value[1] = total - colWidths.value[0];
+function onResize(delta: number): void {
+  colWidths.value[0] = Math.max(30, Math.min(85, colWidths.value[0] + delta / 4));
+  colWidths.value[1] = 100 - colWidths.value[0];
 }
 
-function onResizeRight(delta: number): void {
-  const total = colWidths.value[1] + colWidths.value[2];
-  colWidths.value[1] = Math.max(15, Math.min(50, colWidths.value[1] + delta / 4));
-  colWidths.value[2] = total - colWidths.value[1];
-}
-
-const showPipelineSection = ref(false);
-const showSettingsSection = ref(false);
+const showPipeline = ref(false);
+const showSettings = ref(false);
+const showFields = ref(true);
 const selectedFace = ref<Face>('bottom');
 
 const configuredFaces = computed(() => {
@@ -58,9 +52,7 @@ function onSelectNode(nodeId: string | null): void {
     const node = templateStore.selectedNode;
     if (node) {
       const name = node.name.toLowerCase();
-      if (['bottom', 'top', 'left', 'right'].includes(name)) {
-        selectedFace.value = name as Face;
-      }
+      if (['bottom', 'top', 'left', 'right'].includes(name)) selectedFace.value = name as Face;
     }
   }
 }
@@ -81,7 +73,6 @@ const topBarInfo = computed(() => {
   };
 });
 
-/** Drag & drop .ai file handler */
 async function onFileDrop(e: DragEvent): Promise<void> {
   const file = (e.dataTransfer?.files?.[0] ?? null) as (File & { path?: string }) | null;
   if (!file || !file.path || !file.name.endsWith('.ai')) return;
@@ -90,19 +81,13 @@ async function onFileDrop(e: DragEvent): Promise<void> {
     const result = await window.templatorAPI.scanAiFile(file.path);
     templateStore.setScanResult(result);
     templateStore.initPanelConfigsFromScan(result.tree);
-  } catch (err) {
-    console.error('Scan failed:', err);
-    templateStore.scanError = err instanceof Error ? err.message : 'Scan failed';
-  } finally {
-    isScanning.value = false;
-  }
+  } catch (err) { templateStore.scanError = err instanceof Error ? err.message : 'Scan failed'; }
+  finally { isScanning.value = false; }
 }
 
 async function selectAiFile(): Promise<void> {
   try {
-    const filePath = await window.templatorAPI.openFileDialog([
-      { name: 'Adobe Illustrator', extensions: ['ai'] },
-    ]);
+    const filePath = await window.templatorAPI.openFileDialog([{ name: 'Adobe Illustrator', extensions: ['ai'] }]);
     if (!filePath) return;
     isScanning.value = true;
     try {
@@ -110,26 +95,13 @@ async function selectAiFile(): Promise<void> {
       templateStore.setScanResult(result);
       templateStore.initPanelConfigsFromScan(result.tree);
       settingsStore.setOutputPath(filePath);
-    } catch (err) {
-      console.error('Scan failed:', err);
-      templateStore.scanError = err instanceof Error ? err.message : 'Scan failed';
-    } finally {
-      isScanning.value = false;
-    }
-  } catch {
-    // cancelled
-  }
+    } catch (err) { templateStore.scanError = err instanceof Error ? err.message : 'Scan failed'; }
+    finally { isScanning.value = false; }
+  } catch { /* cancelled */ }
 }
 
-function generateExcel(): void {
-  // Phase 4
-}
-
-/* ── FIX 6: Click field → focus canvas ── */
 function findNodesByName(nodes: TreeNode[], name: string): TreeNode[] {
-  const r: TreeNode[] = [];
-  walk(nodes, name, r);
-  return r;
+  const r: TreeNode[] = []; walk(nodes, name, r); return r;
 }
 function walk(nodes: TreeNode[], name: string, out: TreeNode[]): void {
   for (const n of nodes) { if (n.name === name) out.push(n); walk(n.children, name, out); }
@@ -143,93 +115,65 @@ function focusField(fieldName: string): void {
   fieldCycleIndex.value[fieldName] = next;
   templateStore.selectNode(nodes[idx].id);
 }
+
+function generateExcel(): void { /* Phase 4 */ }
 </script>
 
 <template>
   <div class="screen-setup">
-    <!-- ═══ WELCOME LANDING (no scan yet) ═══ -->
+    <!-- Welcome -->
     <template v-if="!templateStore.scanResult">
-      <div
-        class="welcome"
-        @dragover.prevent
-        @drop.prevent="onFileDrop"
-      >
+      <div class="welcome" @dragover.prevent @drop.prevent="onFileDrop">
         <div class="welcome-box">
           <div class="welcome-icon">
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#569cd6" stroke-width="1.5">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="9" y1="15" x2="15" y2="15"/>
+              <polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/>
             </svg>
           </div>
           <h1 class="welcome-title">Templator Pro</h1>
           <p class="welcome-sub">Select an Adobe Illustrator template to get started</p>
-
-          <button
-            class="scan-btn"
-            :disabled="isScanning"
-            @click="selectAiFile"
-          >
+          <button class="scan-btn" :disabled="isScanning" @click="selectAiFile">
             <span v-if="isScanning" class="spinner"></span>
             {{ isScanning ? 'Scanning...' : 'Select .ai file' }}
           </button>
-
-          <p class="welcome-hint">
-            Or drag & drop an <code>.ai</code> file here
-          </p>
-
-          <div v-if="templateStore.scanError" class="welcome-error">
-            ⚠ {{ templateStore.scanError }}
-          </div>
+          <p class="welcome-hint">Or drag &amp; drop an <code>.ai</code> file here</p>
+          <div v-if="templateStore.scanError" class="welcome-error">⚠ {{ templateStore.scanError }}</div>
         </div>
       </div>
     </template>
 
-    <!-- ═══ EDITOR (after scan) ═══ -->
+    <!-- Editor -->
     <template v-else>
-      <AppTopBar
-        v-bind="topBarInfo"
-        @change-file="selectAiFile"
-        @rescan="selectAiFile"
-      />
+      <AppTopBar v-bind="topBarInfo" @change-file="selectAiFile" @rescan="selectAiFile" />
 
       <div class="preview-section">
+        <!-- Canvas -->
         <div class="col" :style="{ width: colWidths[0] + '%' }">
           <CanvasPreview @select-node="onSelectNode" />
         </div>
 
-        <ResizeDivider side="right" @resize="onResizeLeft" />
+        <ResizeDivider side="right" @resize="onResize" />
 
-        <div class="col" :style="{ width: colWidths[1] + '%' }">
-          <LayerTree
-            :tree="templateStore.scanResult?.tree ?? []"
-            :selected-id="templateStore.selectedNodeId"
-            :configured-faces="configuredFaces"
-            @select-node="onSelectNode"
-          />
-        </div>
+        <!-- Right panel: Tree + Sections + Config -->
+        <div class="col panel-col" :style="{ width: colWidths[1] + '%' }">
+          <div class="panel-scroll">
 
-        <ResizeDivider side="right" @resize="onResizeRight" />
-
-        <!-- Right panel: Config + all sections -->
-        <div class="col right-panel" :style="{ width: colWidths[2] + '%' }">
-          <div class="right-scroll">
-            <!-- Config -->
-            <template v-if="isFaceNode && templateStore.selectedNode">
-              <PanelConfigPanel :face="selectedFace" />
-            </template>
-            <template v-else>
-              <NodeConfigPanel />
-            </template>
+            <!-- Layer Tree -->
+            <LayerTree
+              :tree="templateStore.scanResult?.tree ?? []"
+              :selected-id="templateStore.selectedNodeId"
+              :configured-faces="configuredFaces"
+              @select-node="onSelectNode"
+            />
 
             <!-- Pipeline -->
-            <div class="section">
-              <div class="section-header" @click="showPipelineSection = !showPipelineSection">
-                <span class="section-num">5</span><span>PIPELINE</span>
-                <span class="section-toggle">{{ showPipelineSection ? '▼' : '▶' }}</span>
+            <div class="r-section">
+              <div class="r-section-hdr" @click="showPipeline = !showPipeline">
+                <span>PIPELINE</span>
+                <span class="r-section-arrow">{{ showPipeline ? '▾' : '▸' }}</span>
               </div>
-              <div v-if="showPipelineSection" class="section-body">
-                <p class="section-desc">Global pipeline — applies to all panels unless overridden</p>
+              <div v-if="showPipeline" class="r-section-body">
                 <div class="pipeline-global-controls">
                   <label>Row break
                     <select :value="templateStore.globalRowBreakMode"
@@ -248,12 +192,12 @@ function focusField(fieldName: string): void {
             </div>
 
             <!-- Settings -->
-            <div class="section">
-              <div class="section-header" @click="showSettingsSection = !showSettingsSection">
-                <span class="section-num">4</span><span>SETTINGS</span>
-                <span class="section-toggle">{{ showSettingsSection ? '▼' : '▶' }}</span>
+            <div class="r-section">
+              <div class="r-section-hdr" @click="showSettings = !showSettings">
+                <span>SETTINGS</span>
+                <span class="r-section-arrow">{{ showSettings ? '▾' : '▸' }}</span>
               </div>
-              <div v-if="showSettingsSection" class="section-body">
+              <div v-if="showSettings" class="r-section-body">
                 <div class="setting-row">
                   <label>Icon library (.ai)</label>
                   <div class="setting-path">
@@ -278,17 +222,15 @@ function focusField(fieldName: string): void {
               </div>
             </div>
 
-            <!-- Detected fields -->
-            <div class="section">
-              <div class="section-header">
-                <span class="section-num">3</span><span>DETECTED TEXT FIELDS</span>
+            <!-- Detected Fields -->
+            <div class="r-section">
+              <div class="r-section-hdr" @click="showFields = !showFields">
+                <span>DETECTED TEXT FIELDS</span>
+                <span class="r-section-arrow">{{ showFields ? '▾' : '▸' }}</span>
               </div>
-              <div class="section-body">
-                <p class="section-desc">Unnamed frames are skipped. Click a field to locate it on canvas.</p>
+              <div v-if="showFields" class="r-section-body">
                 <table class="fields-table">
-                  <thead>
-                    <tr><th>In Excel?</th><th>Field name</th><th>Content</th><th>Notes</th></tr>
-                  </thead>
+                  <thead><tr><th>In Excel?</th><th>Field name</th><th>Content</th><th>Notes</th></tr></thead>
                   <tbody>
                     <tr v-for="tf in templateStore.scanResult?.textFrames ?? []" :key="tf.name"
                         :class="{ readonly: tf.readOnly, clickable: !tf.readOnly && tf.name }"
@@ -298,7 +240,7 @@ function focusField(fieldName: string): void {
                       <td>{{ tf.content || '(empty)' }}</td>
                       <td class="notes">
                         <template v-if="tf.readOnly">Read-only</template>
-                        <template v-else-if="!tf.name">Static design element</template>
+                        <template v-else-if="!tf.name">Static</template>
                       </td>
                     </tr>
                   </tbody>
@@ -306,8 +248,16 @@ function focusField(fieldName: string): void {
               </div>
             </div>
 
-            <!-- Generate Excel -->
-            <div class="section">
+            <!-- Config -->
+            <template v-if="isFaceNode && templateStore.selectedNode">
+              <PanelConfigPanel :face="selectedFace" />
+            </template>
+            <template v-else>
+              <NodeConfigPanel />
+            </template>
+
+            <!-- Generate -->
+            <div class="gen-section">
               <button class="generate-btn" @click="generateExcel">Generate Excel template →</button>
             </div>
           </div>
@@ -318,103 +268,55 @@ function focusField(fieldName: string): void {
 </template>
 
 <style scoped>
-.screen-setup {
-  display: flex; flex-direction: column; height: 100%; overflow: hidden;
-}
-
-/* ═══ Welcome ═══ */
-.welcome {
-  flex: 1; display: flex; align-items: center; justify-content: center;
-  background: var(--bg-primary);
-}
-.welcome-box {
-  display: flex; flex-direction: column; align-items: center; gap: 16px;
-  padding: 48px; border: 2px dashed var(--border-primary);
-  border-radius: 16px; background: var(--bg-secondary);
-  min-width: 380px; transition: border-color .2s;
-}
-.welcome-box:hover { border-color: var(--accent); }
-.welcome-icon svg { opacity: .7; }
-.welcome-title { font-size: 28px; font-weight: 300; color: var(--text-primary); margin: 0; }
-.welcome-sub { font-size: 13px; color: var(--text-secondary); margin: 0; }
-.scan-btn {
-  display: flex; align-items: center; gap: 8px;
-  padding: 12px 32px; border: none; border-radius: 8px;
-  background: var(--accent); color: #fff;
-  font-size: 15px; font-weight: 600; cursor: pointer; transition: background .15s;
-}
-.scan-btn:hover:not(:disabled) { background: var(--accent-hover); }
-.scan-btn:disabled { opacity: .6; cursor: wait; }
-.spinner {
-  width: 16px; height: 16px;
-  border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
-  border-radius: 50%; animation: spin .6s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.welcome-hint { font-size: 12px; color: var(--text-muted); margin: 0; }
-.welcome-hint code { color: var(--text-secondary); background: var(--bg-primary); padding: 1px 6px; border-radius: 3px; }
-.welcome-error { color: var(--danger); font-size: 12px; padding: 8px 16px; background: var(--danger-bg); border-radius: 6px; }
-
-/* ═══ Editor ═══ */
-.preview-section { display: flex; flex: 1; min-height: 0; overflow: hidden; }
-.col { overflow: hidden; display: flex; flex-direction: column; }
-.right-panel { overflow: hidden; }
-.right-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
-.section { border-top: 1px solid var(--border-primary); flex-shrink: 0; }
-.section:first-child { border-top: none; }
-.section-header {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 12px; background: var(--bg-secondary);
-  cursor: pointer; font-size: 12px;
-  color: var(--text-primary); font-weight: 600;
-}
-.section-header:hover { background: var(--bg-hover); }
-.section-num { color: var(--text-muted); font-size: 11px; }
-.section-toggle { margin-left: auto; color: var(--text-muted); font-size: 10px; }
-.section-body { padding: 10px 12px; overflow: visible; }
-.section-desc { font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; }
-.pipeline-global-controls { display: flex; gap: 24px; margin-bottom: 8px; }
-.pipeline-global-controls label { font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; }
-.pipeline-global-controls select,
-.pipeline-global-controls input {
-  padding: 2px 6px; background: var(--bg-input);
-  border: 1px solid var(--border-primary); border-radius: 3px;
-  color: var(--text-primary); font-size: 11px; width: 70px;
-}
-.reset-btn {
-  margin-top: 6px; padding: 4px 12px;
-  border: 1px solid var(--border-primary); border-radius: 4px;
-  background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 11px;
-}
-.reset-btn:hover { background: var(--bg-hover); }
-.setting-row { margin-bottom: 10px; }
-.setting-row label { font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 4px; }
-.setting-path { display: flex; gap: 6px; }
-.setting-path input {
-  flex: 1; padding: 4px 8px; background: var(--bg-input);
-  border: 1px solid var(--border-primary); border-radius: 3px;
-  color: var(--text-primary); font-size: 12px;
-}
-.setting-path button {
-  padding: 4px 12px; border: 1px solid var(--border-primary); border-radius: 3px;
-  background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer; font-size: 11px;
-}
-.setting-path button:hover { background: var(--bg-hover); }
-.fields-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.fields-table th {
-  text-align: left; padding: 4px 8px; color: var(--text-muted);
-  font-weight: 600; border-bottom: 1px solid var(--border-primary);
-}
-.fields-table td { padding: 4px 8px; border-bottom: 1px solid var(--bg-secondary); color: var(--text-primary); }
-.fields-table tr.readonly td { color: var(--text-muted); }
-.fields-table tr.clickable { cursor: pointer; }
-.fields-table tr.clickable:hover td { background: var(--bg-hover); }
-.fields-table .notes { color: var(--text-muted); font-size: 11px; font-style: italic; }
-.generate-btn {
-  display: block; width: 100%; padding: 10px;
-  border: 2px solid var(--accent); border-radius: 6px;
-  background: var(--accent-bg); color: var(--accent);
-  cursor: pointer; font-size: 14px; font-weight: 600;
-}
-.generate-btn:hover { background: var(--accent); color: #fff; }
+.screen-setup { display:flex; flex-direction:column; height:100%; overflow:hidden; }
+/* Welcome */
+.welcome { flex:1; display:flex; align-items:center; justify-content:center; background:var(--bg-primary); }
+.welcome-box { display:flex; flex-direction:column; align-items:center; gap:16px; padding:48px; border:2px dashed var(--border-primary); border-radius:16px; background:var(--bg-secondary); min-width:380px; }
+.welcome-box:hover { border-color:var(--accent); }
+.welcome-title { font-size:28px; font-weight:300; color:var(--text-primary); margin:0; }
+.welcome-sub { font-size:13px; color:var(--text-secondary); }
+.scan-btn { display:flex; align-items:center; gap:8px; padding:12px 32px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-size:15px; font-weight:600; cursor:pointer; }
+.scan-btn:hover:not(:disabled) { background:var(--accent-hover); }
+.scan-btn:disabled { opacity:.6; cursor:wait; }
+.spinner { width:16px; height:16px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .6s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.welcome-hint { font-size:12px; color:var(--text-muted); }
+.welcome-hint code { color:var(--text-secondary); background:var(--bg-primary); padding:1px 6px; border-radius:3px; }
+.welcome-error { color:var(--danger); font-size:12px; padding:8px 16px; background:var(--danger-bg); border-radius:6px; }
+/* Editor */
+.preview-section { display:flex; flex:1; min-height:0; overflow:hidden; }
+.col { overflow:hidden; display:flex; flex-direction:column; }
+.panel-col { overflow:hidden; }
+.panel-scroll { flex:1; overflow-y:auto; display:flex; flex-direction:column; }
+/* Collapsible sections */
+.r-section { border-top:1px solid var(--border-primary); flex-shrink:0; }
+.r-section-hdr { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; font-size:11px; color:var(--text-muted); font-weight:600; cursor:pointer; background:var(--bg-secondary); }
+.r-section-hdr:hover { background:var(--bg-hover); }
+.r-section-arrow { font-size:10px; }
+.r-section-body { padding:8px 12px; }
+/* Pipeline controls */
+.pipeline-global-controls { display:flex; gap:16px; margin-bottom:6px; }
+.pipeline-global-controls label { font-size:11px; color:var(--text-secondary); display:flex; align-items:center; gap:4px; }
+.pipeline-global-controls select, .pipeline-global-controls input { padding:2px 6px; background:var(--bg-input); border:1px solid var(--border-primary); border-radius:3px; color:var(--text-primary); font-size:11px; width:64px; }
+.reset-btn { margin-top:4px; padding:3px 10px; border:1px solid var(--border-primary); border-radius:4px; background:transparent; color:var(--text-secondary); cursor:pointer; font-size:11px; }
+.reset-btn:hover { background:var(--bg-hover); }
+/* Settings */
+.setting-row { margin-bottom:8px; }
+.setting-row label { font-size:11px; color:var(--text-secondary); display:block; margin-bottom:3px; }
+.setting-path { display:flex; gap:4px; }
+.setting-path input { flex:1; padding:4px 6px; background:var(--bg-input); border:1px solid var(--border-primary); border-radius:3px; color:var(--text-primary); font-size:11px; }
+.setting-path button { padding:4px 8px; border:1px solid var(--border-primary); border-radius:3px; background:var(--bg-tertiary); color:var(--text-secondary); cursor:pointer; font-size:11px; }
+.setting-path button:hover { background:var(--bg-hover); }
+/* Fields table */
+.fields-table { width:100%; border-collapse:collapse; font-size:11px; }
+.fields-table th { text-align:left; padding:3px 6px; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border-primary); }
+.fields-table td { padding:3px 6px; border-bottom:1px solid var(--bg-secondary); color:var(--text-primary); }
+.fields-table tr.readonly td { color:var(--text-muted); }
+.fields-table tr.clickable { cursor:pointer; }
+.fields-table tr.clickable:hover td { background:var(--bg-hover); }
+.fields-table .notes { color:var(--text-muted); font-size:10px; }
+/* Generate */
+.gen-section { padding:10px 12px; border-top:1px solid var(--border-primary); flex-shrink:0; }
+.generate-btn { display:block; width:100%; padding:8px; border:2px solid var(--accent); border-radius:6px; background:var(--accent-bg); color:var(--accent); cursor:pointer; font-size:13px; font-weight:600; }
+.generate-btn:hover { background:var(--accent); color:#fff; }
 </style>
