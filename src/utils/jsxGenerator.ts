@@ -32,6 +32,8 @@ export function generateJsx(input: JsxGenerationInput): string {
   const lines: string[] = [];
 
   /* ── Header: disable alerts + conversion ── */
+  lines.push('// Suppress security prompts and alert dialogs');
+  lines.push('app.preferences.setBooleanPreference("ShowExternalJSXWarning", false);');
   lines.push('app.userInteractionLevel = UserInteractionLevel.DONTDISPLAYALERTS;');
   lines.push('var MM = 2.83465;');
   lines.push('');

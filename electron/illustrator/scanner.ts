@@ -56,6 +56,8 @@ export async function scanAiFile(filePath: string): Promise<ScanResult> {
 
 function generateScanJsx(aiPath: string, outputPath: string, pngPath: string): string {
   return [
+    '// Suppress security prompts and alert dialogs',
+    'app.preferences.setBooleanPreference("ShowExternalJSXWarning", false);',
     'app.userInteractionLevel = UserInteractionLevel.DONTDISPLAYALERTS;',
     'var MM = 2.83465;',
     '',
